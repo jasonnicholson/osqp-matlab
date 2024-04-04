@@ -106,12 +106,11 @@ function make_osqp(command, verboseFlag, debugFlag)
   lib_name = sprintf('libosqp%s', lib_ext);
 
   % Set osqp directory and osqp_build directory
-  current_dir = pwd;
   makefile_path = fileparts(mfilename("fullpath"));
   osqp_dir = fullfile(makefile_path, 'osqp_sources');
   osqp_build_dir = fullfile(osqp_dir, 'build');
   qdldl_dir = fullfile(osqp_dir, 'lin_sys', 'direct', 'qdldl');
-  cg_sources_dir = fullfile('.', 'codegen', 'sources');
+  cg_sources_dir = fullfile(makefile_path, 'codegen', 'sources');
 
   % Include directory
   inc_dir = [
@@ -121,7 +120,7 @@ function make_osqp(command, verboseFlag, debugFlag)
 
 
   %% OSQP Solver
-  if( any(strcmpi(command,'osqp')) || any(strcmpi(command,'all')) )
+  if any(strcmpi(command,'osqp')) || any(strcmpi(command,'all')) || (any(strcmpi(command,'osqp_mex')) && ~exist(fullfile(makefile_path, lib_name), 'file'))
     fprintf('Compiling OSQP solver...\n');
 
     % Create build directory and go inside
@@ -168,7 +167,8 @@ function make_osqp(command, verboseFlag, debugFlag)
 
       % Copy static library to current folder
       lib_origin = fullfile(osqp_build_dir, 'out', lib_name);
-      copyfile(lib_origin, lib_name);
+      lib_destination = fullfile(makefile_path, lib_name);
+      copyfile(lib_origin, lib_destination);
 
       cd(oldDirectory);
     catch e
@@ -274,7 +274,7 @@ function make_osqp(command, verboseFlag, debugFlag)
     fprintf('Cleaning mex files and library...\n');
 
     % Delete mex file
-    mexfiles = dir(['*.', mexext]);
+    mexfiles = dir(fullfile(makefile_path, '*.', mexext));
     for i = 1 : length(mexfiles)
       delete(mexfiles(i).name);
     end
@@ -305,11 +305,6 @@ function make_osqp(command, verboseFlag, debugFlag)
 
     fprintf('Done\n\n\n');
   end
-
-
-  %% Go back to the original directory
-  cd(current_dir);
-
 end
 
 %%
