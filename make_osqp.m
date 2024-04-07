@@ -1,4 +1,4 @@
-function make_osqp(command, verboseFlag, debugFlag)
+function make_osqp(command, verboseFlag, debugFlag,cmakeExtraOptions, mexExtraOptions)
   % Matlab MEX makefile for OSQP.
   %
   %   make_osqp
@@ -29,6 +29,8 @@ function make_osqp(command, verboseFlag, debugFlag)
     command (:,1) string {checkCommandString(command)} = "all";
     verboseFlag (1,1) logical = false;
     debugFlag (1,1) logical = false;
+    cmakeExtraOptions (1,1) string = "";
+    mexExtraOptions (1,1) string = "";
   end
 
   %% Try to unlock any pre-existing version of osqp_mex
@@ -69,6 +71,9 @@ function make_osqp(command, verboseFlag, debugFlag)
     cmake_args = sprintf("%s -DCMAKE_BUILD_TYPE=Debug",cmake_args);
   end
 
+  % Add extra options to cmake
+  cmake_args = sprintf("%s %s", cmake_args, cmakeExtraOptions);
+
   % Add parameters options to mex and cmake
   % CTRLC
   if (ispc)
@@ -100,6 +105,9 @@ function make_osqp(command, verboseFlag, debugFlag)
   if debugFlag
     mexoptflags = [mexoptflags; "-g"];
   end
+
+  % Add extra options to mex
+  mexoptflags = [mexoptflags; mexExtraOptions];
 
   % Set library extension
   lib_ext = '.a';
