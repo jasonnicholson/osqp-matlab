@@ -76,10 +76,11 @@ function make_osqp(command, verboseFlag, debugFlag,cmakeExtraOptions, mexExtraOp
 
   % Add parameters options to mex and cmake
   % CTRLC
+  mex_libs = "-lut";
   if (ispc)
-    mex_libs = "-llibut";
-  else
-    mex_libs = "-lut";
+      % not sure why this is necessary but it is.
+    folderContainingLibut_lib = fullfile(matlabroot,"extern","lib","win64","mingw64");
+    mex_libs = [mex_libs; "-L"+folderContainingLibut_lib];
   end
   % Shared library loading
   if (isunix && ~ismac)
