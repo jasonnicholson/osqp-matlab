@@ -27,6 +27,8 @@
 #include "matrix.h"
 #include "osqp_mex.hpp"
 #include "osqp.h"
+#include "types.h"           /* private: OSQPWorkspace_, OSQPData */
+#include "algebra_matrix.h"  /* OSQPMatrix_get_nz, OSQPMatrix_get_x, etc. */
 
 #include <cstring>
 #include <cstdlib>
@@ -542,40 +544,59 @@ void mexFunction(int nlhs, mxArray* plhs[],
         OSQPInt n_dim, m_dim;
         osqp_get_dimensions(osqpData->solver, &m_dim, &n_dim);
 
-        /* Allocate output CSC matrices */
-        OSQPCscMatrix* dP = OSQPCscMatrix_zeros(n_dim, n_dim);
-        OSQPCscMatrix* dA = OSQPCscMatrix_zeros(m_dim, n_dim);
+        /* Allocate output CSC matrices with matching sparsity patterns.
+         * adjoint_derivative_get_mat iterates over the existing sparsity
+         * structure, so we must mirror P and A. */
+        OSQPCscMatrix* Pcsc = OSQPMatrix_get_csc(osqpData->solver->work->data->P);
+        OSQPCscMatrix* Acsc = OSQPMatrix_get_csc(osqpData->solver->work->data->A);
+
+        OSQPInt P_nnz = Pcsc->p[n_dim];
+        OSQPInt A_nnz = Acsc->p[n_dim];
+
+        OSQPCscMatrix* dP = (OSQPCscMatrix*)calloc(1, sizeof(OSQPCscMatrix));
+        dP->m = n_dim; dP->n = n_dim; dP->nzmax = P_nnz; dP->nz = -1;
+        dP->p = (OSQPInt*)calloc(n_dim + 1, sizeof(OSQPInt));
+        dP->i = (OSQPInt*)calloc(P_nnz > 0 ? P_nnz : 1, sizeof(OSQPInt));
+        dP->x = (OSQPFloat*)calloc(P_nnz > 0 ? P_nnz : 1, sizeof(OSQPFloat));
+        for (OSQPInt j = 0; j <= n_dim; j++) dP->p[j] = Pcsc->p[j];
+        for (OSQPInt k = 0; k < P_nnz; k++) dP->i[k] = Pcsc->i[k];
+
+        OSQPCscMatrix* dA = (OSQPCscMatrix*)calloc(1, sizeof(OSQPCscMatrix));
+        dA->m = m_dim; dA->n = n_dim; dA->nzmax = A_nnz; dA->nz = -1;
+        dA->p = (OSQPInt*)calloc(n_dim + 1, sizeof(OSQPInt));
+        dA->i = (OSQPInt*)calloc(A_nnz > 0 ? A_nnz : 1, sizeof(OSQPInt));
+        dA->x = (OSQPFloat*)calloc(A_nnz > 0 ? A_nnz : 1, sizeof(OSQPFloat));
+        for (OSQPInt j = 0; j <= n_dim; j++) dA->p[j] = Acsc->p[j];
+        for (OSQPInt k = 0; k < A_nnz; k++) dA->i[k] = Acsc->i[k];
 
         exitflag = osqp_adjoint_derivative_get_mat(osqpData->solver, dP, dA);
 
         if (exitflag) {
-            OSQPCscMatrix_free(dP);
-            OSQPCscMatrix_free(dA);
+            free(dP->x); free(dP->i); free(dP->p); free(dP);
+            free(dA->x); free(dA->i); free(dA->p); free(dA);
             mexErrMsgTxt("Adjoint derivative matrix retrieval failed.");
         }
 
         /* Convert dP to MATLAB sparse */
-        OSQPInt dP_nnz = dP->p[n_dim];
-        mxArray* mxdP = mxCreateSparse(n_dim, n_dim, dP_nnz > 0 ? dP_nnz : 1, mxREAL);
+        mxArray* mxdP = mxCreateSparse(n_dim, n_dim, P_nnz > 0 ? P_nnz : 1, mxREAL);
         for (OSQPInt j = 0; j <= n_dim; j++) ((mwIndex*)mxGetJc(mxdP))[j] = (mwIndex)dP->p[j];
-        for (OSQPInt k = 0; k < dP_nnz; k++) {
+        for (OSQPInt k = 0; k < P_nnz; k++) {
             ((mwIndex*)mxGetIr(mxdP))[k] = (mwIndex)dP->i[k];
             mxGetPr(mxdP)[k] = (double)dP->x[k];
         }
         plhs[0] = mxdP;
 
         /* Convert dA to MATLAB sparse */
-        OSQPInt dA_nnz = dA->p[n_dim];
-        mxArray* mxdA = mxCreateSparse(m_dim, n_dim, dA_nnz > 0 ? dA_nnz : 1, mxREAL);
+        mxArray* mxdA = mxCreateSparse(m_dim, n_dim, A_nnz > 0 ? A_nnz : 1, mxREAL);
         for (OSQPInt j = 0; j <= n_dim; j++) ((mwIndex*)mxGetJc(mxdA))[j] = (mwIndex)dA->p[j];
-        for (OSQPInt k = 0; k < dA_nnz; k++) {
+        for (OSQPInt k = 0; k < A_nnz; k++) {
             ((mwIndex*)mxGetIr(mxdA))[k] = (mwIndex)dA->i[k];
             mxGetPr(mxdA)[k] = (double)dA->x[k];
         }
         plhs[1] = mxdA;
 
-        OSQPCscMatrix_free(dP);
-        OSQPCscMatrix_free(dA);
+        free(dP->x); free(dP->i); free(dP->p); free(dP);
+        free(dA->x); free(dA->i); free(dA->p); free(dA);
         return;
     }
 
