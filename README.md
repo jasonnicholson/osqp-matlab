@@ -32,21 +32,23 @@ git clone https://github.com/osqp/osqp-matlab.git
 cd osqp-matlab
 ```
 
-Build the MEX interface from within MATLAB:
+Set up the development path and build the MEX interface from within MATLAB:
 
 ```matlab
-make_osqp          % default (builtin/QDLDL algebra backend)
-make_osqp mkl      % Intel MKL algebra backend
-make_osqp cuda     % NVIDIA CUDA algebra backend
+setupOSQPdevelopmentPath   % adds src/ and utils/ to the MATLAB path
+make_osqp                  % default (builtin/QDLDL algebra backend)
 ```
 
 The build system uses CMake `FetchContent` to automatically download OSQP v1.0.0 and its dependencies (QDLDL). No git submodules are needed.
 
-Add the `osqp-matlab` directory to your MATLAB path:
+Build options:
 
 ```matlab
-addpath('/path/to/osqp-matlab');
-savepath;
+make_osqp('algebra', 'mkl')     % Intel MKL algebra backend
+make_osqp('algebra', 'cuda')    % NVIDIA CUDA algebra backend
+make_osqp('-verbose')           % print full compiler output
+make_osqp('clean')              % remove compiled MEX files
+make_osqp('purge')              % clean + remove build directory
 ```
 
 ## Quick Start
@@ -136,7 +138,32 @@ Code generation options: `'parameters'` (`'vectors'`, `'matrices'`, or `'none'`)
 ## Running Tests
 
 ```matlab
-run_osqp_tests
+setupOSQPdevelopmentPath   % if not already done
+run_osqp_tests             % run all 37 unit tests
+run_osqp_tests(true)       % run tests with HTML coverage report
+```
+
+## Running Examples
+
+```matlab
+setupOSQPdevelopmentPath   % if not already done
+run_osqp_examples          % run all example scripts
+```
+
+## Project Structure
+
+```
+osqp-matlab/
+├── setupOSQPdevelopmentPath.m   % adds src/ and utils/ to the MATLAB path
+├── src/                         % packaged source files
+│   ├── osqp.m                   % main OSQP class
+│   ├── make_osqp.m              % build script
+│   ├── osqp_mex.cpp/.hpp        % MEX gateway
+│   ├── CMakeLists.txt           % CMake build configuration
+│   └── codegen/                 % code generation support
+├── examples/                    % example scripts
+├── unittests/                   % unit test suite
+└── utils/                       % development utilities
 ```
 
 ## Migration from v0.6.x
