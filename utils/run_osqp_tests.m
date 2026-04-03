@@ -33,18 +33,12 @@ function result = run_osqp_tests(generateCoverage)
   if generateCoverage
 
     % Collect source files to measure coverage on
-    sourceFiles = {fullfile(srcFolder, 'osqp.m')};
+    sourceFiles = fullfile(srcFolder, "osqp.m");
 
     % Add codegen .m files
     codegenFiles = dir(fullfile(srcFolder, 'codegen', '*.m'));
     for k = 1:numel(codegenFiles)
-      sourceFiles{end+1} = fullfile(codegenFiles(k).folder, codegenFiles(k).name); %#ok<AGROW>
-    end
-
-    % Add utils .m files
-    utilFiles = dir(fullfile(osqp_root, 'utils', '*.m'));
-    for k = 1:numel(utilFiles)
-      sourceFiles{end+1} = fullfile(utilFiles(k).folder, utilFiles(k).name); %#ok<AGROW>
+      sourceFiles(end+1) = string(fullfile(codegenFiles(k).folder, codegenFiles(k).name)); %#ok<AGROW>
     end
 
     reportDir = fullfile(osqp_root, 'coverage_report');
