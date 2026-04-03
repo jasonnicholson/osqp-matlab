@@ -50,7 +50,7 @@ fprintf('[done]\n');
 
 % Copying folders
 fprintf('Copying folders...\n');
-folders_to_copy = {'codegen', 'unittests', 'examples', 'utils'};
+folders_to_copy = {'src', 'unittests', 'examples', 'utils'};
 for i = 1:length(folders_to_copy)
     folder = folders_to_copy{i};
     fprintf('  Copying  %s/%s/...\n', package_name, folder);
@@ -61,9 +61,7 @@ fprintf('[done]\n');
 
 % Copying files
 fprintf('Copying files...\n');
-files_to_copy = {sprintf('osqp_mex.%s', mexext),...
-    'osqp.m', ...
-    'run_osqp_tests.m', ...
+files_to_copy = {'setupOSQPdevelopmentPath.m', ...
     'README.md'};
 for i=1:length(files_to_copy)
     file = files_to_copy{i};

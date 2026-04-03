@@ -1,7 +1,7 @@
 function run_osqp_examples()
 % Runs all OSQP MATLAB example scripts located in the 'examples' folder.
 
-  repoRoot = fileparts(mfilename('fullpath'));
+  repoRoot = fileparts(fileparts(mfilename('fullpath')));
   startingDirectory = pwd;
   
   examples = dir(fullfile(repoRoot, 'examples', '*.m'));

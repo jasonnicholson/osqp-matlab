@@ -53,7 +53,8 @@ end
 % Paths
 % ---------------------------------------------------------------
 [makefile_path, ~, ~] = fileparts(which('make_osqp.m'));
-build_dir = fullfile(makefile_path, 'build');
+osqp_root = fileparts(makefile_path);  % go up from src/ to project root
+build_dir = fullfile(osqp_root, 'build');
 
 % ---------------------------------------------------------------
 % Compiler / linker helpers
@@ -131,7 +132,7 @@ if any(strcmpi(what, {'osqp','all'}))
     % Configure
     orig_dir = pwd;
     cd(build_dir);
-    [status, output] = system(sprintf('cmake %s "%s"', cmake_args, makefile_path));
+    [status, output] = system(sprintf('cmake %s "%s"', cmake_args, osqp_root));
     if status
         cd(orig_dir);
         fprintf('\n'); disp(output);
@@ -194,8 +195,9 @@ if any(strcmpi(what, {'osqp_mex','all'}))
     lib_name = findlib(build_dir);
 
     % Build MEX
-    cmd = sprintf('%s %s %s "%s" "%s" %s', ...
+    cmd = sprintf('%s %s %s -outdir "%s" "%s" "%s" %s', ...
         mex_cmd, mexoptflags, inc_flags, ...
+        makefile_path, ...
         fullfile(makefile_path, 'osqp_mex.cpp'), ...
         lib_name, mex_libs);
 
@@ -208,9 +210,9 @@ end
 % ---------------------------------------------------------------
 if any(strcmpi(what, {'clean','purge'}))
     fprintf('Cleaning...');
-    mexfiles = dir(['*.', mexext]);
+    mexfiles = dir(fullfile(makefile_path, ['*.', mexext]));
     for k = 1:length(mexfiles)
-        delete(mexfiles(k).name);
+        delete(fullfile(mexfiles(k).folder, mexfiles(k).name));
     end
     fprintf('\t\t\t\t\t[done]\n');
 end

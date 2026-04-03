@@ -391,10 +391,11 @@ classdef osqp < handle
 
             % Copy OSQP codegen source files into target directory
             [osqp_path, ~, ~] = fileparts(which('osqp.m'));
-            codegen_src_dir = fullfile(osqp_path, 'build', 'codegen_src');
+            osqp_root = fileparts(osqp_path);  % go up from src/ to project root
+            codegen_src_dir = fullfile(osqp_root, 'build', 'codegen_src');
             if ~exist(codegen_src_dir, 'dir')
                 % Try alternate location under _deps
-                codegen_src_dir = fullfile(osqp_path, 'build', '_deps', ...
+                codegen_src_dir = fullfile(osqp_root, 'build', '_deps', ...
                     'osqp-build', 'codegen_src');
             end
             if ~exist(codegen_src_dir, 'dir')
