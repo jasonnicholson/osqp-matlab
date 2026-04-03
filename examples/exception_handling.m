@@ -22,8 +22,8 @@ delete(solver);
 P = sparse([4 1; 1 2]);
 q = [1; 1];
 A = sparse([1 0; 0 1; 1 0]);
-l = [1; 1; -0.5];  % Conflicting: x1 >= 1 and x1 <= -0.5
-u = [-0.5; 2; 1];
+l = [2; 0; -inf];   % Conflicting: x1 >= 2 and x1 <= 0 (via rows 1 & 3)
+u = [inf; 1; 0];
 
 solver = osqp;
 solver.setup(P, q, A, l, u, 'verbose', false);
