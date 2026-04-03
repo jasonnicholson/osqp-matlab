@@ -1,492 +1,210 @@
+/*
+ * emosqp_mex.c — MATLAB MEX interface for OSQP embedded (codegen) solver
+ *
+ * Commands:
+ *   'solve'                → solve the embedded problem
+ *   'update_data_vec'      → update q, l, u vectors
+ *   'update_data_mat'      → update P and/or A matrix elements (embedded mode 2)
+ *   'warm_start'           → warm start x, y
+ *   'cold_start'           → reset iterates to zero
+ *   'update_settings'      → update solver settings
+ */
+
 #include <string.h>
-#include <mex.h>
+#include "mex.h"
 #include "osqp.h"
 #include "workspace.h"
 
 
+/* ------------------------------------------------------------------ */
+/* Utility functions                                                   */
+/* ------------------------------------------------------------------ */
 
-/*********************************
- * Timer Structs and Functions * *
- *********************************/
+static OSQPFloat* copyToCfloatVector(double* vecData, OSQPInt numel) {
+    OSQPFloat* out = (OSQPFloat*)mxMalloc(numel * sizeof(OSQPFloat));
+    for (OSQPInt i = 0; i < numel; i++)
+        out[i] = (OSQPFloat)vecData[i];
+    return out;
+}
 
-// Windows
-#ifdef IS_WINDOWS
+static void castToDoubleArr(OSQPFloat* arr, double* arr_out, OSQPInt len) {
+    for (OSQPInt i = 0; i < len; i++)
+        arr_out[i] = (double)arr[i];
+}
 
-#include <windows.h>
+static void setToNaN(double* arr_out, OSQPInt len) {
+    for (OSQPInt i = 0; i < len; i++)
+        arr_out[i] = mxGetNaN();
+}
 
-typedef struct {
-    LARGE_INTEGER tic;
-	LARGE_INTEGER toc;
-	LARGE_INTEGER freq;
-} PyTimer;
-
-// Mac
-#elif defined IS_MAC
-
-#include <mach/mach_time.h>
-
-/* Use MAC OSX  mach_time for timing */
-typedef struct {
-	uint64_t tic;
-	uint64_t toc;
-	mach_timebase_info_data_t tinfo;
-} PyTimer;
-
-// Linux
-#else
-
-/* Use POSIX clocl_gettime() for timing on non-Windows machines */
-#include <time.h>
-#include <sys/time.h>
-
-typedef struct {
-	struct timespec tic;
-	struct timespec toc;
-} PyTimer;
-
+#if OSQP_EMBEDDED_MODE == 2
+static OSQPInt* copyDoubleToCintVector(double* vecData, OSQPInt numel) {
+    OSQPInt* out = (OSQPInt*)mxMalloc(numel * sizeof(OSQPInt));
+    for (OSQPInt i = 0; i < numel; i++)
+        out[i] = (OSQPInt)vecData[i];
+    return out;
+}
 #endif
 
 
-/**
- * Timer Methods
- */
-
-// Windows
-#ifdef IS_WINDOWS
-
-void tic(PyTimer* t)
+/* ------------------------------------------------------------------ */
+/* mexFunction                                                         */
+/* ------------------------------------------------------------------ */
+void mexFunction(int nlhs, mxArray* plhs[], int nrhs, const mxArray* prhs[])
 {
-    QueryPerformanceFrequency(&t->freq);
-    QueryPerformanceCounter(&t->tic);
-}
-
-c_float toc(PyTimer* t)
-{
-    QueryPerformanceCounter(&t->toc);
-    return ((t->toc.QuadPart - t->tic.QuadPart) / (c_float)t->freq.QuadPart);
-}
-
-// Mac
-#elif defined IS_MAC
-
-void tic(PyTimer* t)
-{
-    /* read current clock cycles */
-    t->tic = mach_absolute_time();
-}
-
-c_float toc(PyTimer* t)
-{
-	uint64_t duration; /* elapsed time in clock cycles*/
-
-    t->toc = mach_absolute_time();
-    duration = t->toc - t->tic;
-
-    /*conversion from clock cycles to nanoseconds*/
-    mach_timebase_info(&(t->tinfo));
-    duration *= t->tinfo.numer;
-    duration /= t->tinfo.denom;
-
-    return (c_float)duration / 1e9;
-}
-
-
-// Linux
-#else
-
-/* read current time */
-void tic(PyTimer* t)
-{
-    clock_gettime(CLOCK_MONOTONIC, &t->tic);
-}
-
-
-/* return time passed since last call to tic on this timer */
-c_float toc(PyTimer* t)
-{
-    struct timespec temp;
-
-    clock_gettime(CLOCK_MONOTONIC, &t->toc);
-
-    if ((t->toc.tv_nsec - t->tic.tv_nsec)<0) {
-        temp.tv_sec = t->toc.tv_sec - t->tic.tv_sec-1;
-        temp.tv_nsec = 1e9+t->toc.tv_nsec - t->tic.tv_nsec;
-    } else {
-        temp.tv_sec = t->toc.tv_sec - t->tic.tv_sec;
-        temp.tv_nsec = t->toc.tv_nsec - t->tic.tv_nsec;
-    }
-    return (c_float)temp.tv_sec + (c_float)temp.tv_nsec / 1e9;
-}
-
-
-#endif
-
-/****************************************
- * END( Timer Structs and Functions ) * *
- ****************************************/
-
-
-
-// Internal utility functions
-c_float* copyToCfloatVector(double * vecData, c_int numel);
-void     castToDoubleArr(c_float *arr, double* arr_out, c_int len);
-void     setToNaN(double* arr_out, c_int len);
-#if EMBEDDED != 1
-c_int*   copyDoubleToCintVector(double* vecData, c_int numel);
-void     change1To0Indexing(c_int *vecData, c_int numel);
-#endif
-
-
-// Function handler
-void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
-{
-    // Get the command string
     char cmd[64];
-	  if (nrhs < 1 || mxGetString(prhs[0], cmd, sizeof(cmd)))
-		mexErrMsgTxt("First input should be a command string less than 64 characters long.");
+    if (nrhs < 1 || mxGetString(prhs[0], cmd, sizeof(cmd)))
+        mexErrMsgTxt("First input should be a command string less than 64 characters long.");
 
-
-    // SOLVE
+    /* ---- solve ---- */
     if (!strcmp("solve", cmd)) {
+        if (nlhs != 5 || nrhs != 1)
+            mexErrMsgTxt("solve: expects 0 inputs and 5 outputs.");
 
-        // Allocate timer
-        double solve_time;
-        PyTimer * timer;
-        timer = mxMalloc(sizeof(PyTimer));
+        OSQPInt n, m;
+        osqp_get_dimensions(&solver, &m, &n);
 
-        if (nlhs != 5 || nrhs != 1){
-            mexErrMsgTxt("Solve : wrong number of inputs / outputs");
+        osqp_solve(&solver);
+
+        /* Allocate outputs */
+        plhs[0] = mxCreateDoubleMatrix(n, 1, mxREAL);  /* x */
+        plhs[1] = mxCreateDoubleMatrix(m, 1, mxREAL);  /* y */
+        plhs[2] = mxCreateDoubleScalar(solver.info->status_val);
+        plhs[3] = mxCreateDoubleScalar(solver.info->iter);
+        plhs[4] = mxCreateDoubleScalar(solver.info->run_time);
+
+        OSQPInt sv = solver.info->status_val;
+        if (sv != OSQP_PRIMAL_INFEASIBLE &&
+            sv != OSQP_PRIMAL_INFEASIBLE_INACCURATE &&
+            sv != OSQP_DUAL_INFEASIBLE &&
+            sv != OSQP_DUAL_INFEASIBLE_INACCURATE) {
+            castToDoubleArr(solver.solution->x, mxGetPr(plhs[0]), n);
+            castToDoubleArr(solver.solution->y, mxGetPr(plhs[1]), m);
+        } else {
+            setToNaN(mxGetPr(plhs[0]), n);
+            setToNaN(mxGetPr(plhs[1]), m);
         }
-
-        // solve the problem
-        tic(timer);                 // start timer
-        osqp_solve(&workspace);
-        solve_time = toc(timer);    // stop timer
-
-
-        // Allocate space for solution
-        // primal variables
-        plhs[0] = mxCreateDoubleMatrix((&workspace)->data->n, 1, mxREAL);
-        // dual variables
-        plhs[1] = mxCreateDoubleMatrix((&workspace)->data->m, 1, mxREAL);
-        // status value
-        plhs[2] = mxCreateDoubleScalar((&workspace)->info->status_val);
-        // number of iterations
-        plhs[3] = mxCreateDoubleScalar((&workspace)->info->iter);
-        // solve time
-        plhs[4] = mxCreateDoubleScalar(solve_time);
-
-
-        //copy results to mxArray outputs
-        //assume that three outputs will always
-        //be returned to matlab-side class wrapper
-        if (((&workspace)->info->status_val != OSQP_PRIMAL_INFEASIBLE) &&
-            ((&workspace)->info->status_val != OSQP_PRIMAL_INFEASIBLE_INACCURATE) &&
-            ((&workspace)->info->status_val != OSQP_DUAL_INFEASIBLE) &&
-            ((&workspace)->info->status_val != OSQP_DUAL_INFEASIBLE_INACCURATE)){
-
-            //primal variables
-            castToDoubleArr((&workspace)->solution->x, mxGetPr(plhs[0]), (&workspace)->data->n);
-
-            //dual variables
-            castToDoubleArr((&workspace)->solution->y, mxGetPr(plhs[1]), (&workspace)->data->m);
-
-        } else { // Problem is primal or dual infeasible -> NaN values
-
-            // Set primal and dual variables to NaN
-            setToNaN(mxGetPr(plhs[0]), (&workspace)->data->n);
-            setToNaN(mxGetPr(plhs[1]), (&workspace)->data->m);
-        }
-
         return;
     }
 
+    /* ---- update_data_vec ---- */
+    if (!strcmp("update_data_vec", cmd)) {
+        const mxArray* mxq = prhs[1];
+        const mxArray* mxl = prhs[2];
+        const mxArray* mxu = prhs[3];
 
-    // update linear cost
-    if (!strcmp("update_lin_cost", cmd)) {
+        OSQPInt n, m;
+        osqp_get_dimensions(&solver, &m, &n);
 
-        // Fill q
-        const mxArray *q = prhs[1];
+        OSQPFloat* q_new = NULL;
+        OSQPFloat* l_new = NULL;
+        OSQPFloat* u_new = NULL;
+        if (!mxIsEmpty(mxq)) q_new = copyToCfloatVector(mxGetPr(mxq), n);
+        if (!mxIsEmpty(mxl)) l_new = copyToCfloatVector(mxGetPr(mxl), m);
+        if (!mxIsEmpty(mxu)) u_new = copyToCfloatVector(mxGetPr(mxu), m);
 
-        // Copy vector to ensure it is cast as c_float
-        c_float *q_vec;
-        if(!mxIsEmpty(q)){
-            q_vec = copyToCfloatVector(mxGetPr(q), (&workspace)->data->n);
-        }
+        osqp_update_data_vec(&solver, q_new, l_new, u_new);
 
-        if(!mxIsEmpty(q)){
-          osqp_update_lin_cost(&workspace, q_vec);
-        }
-
-        // Free
-        if(!mxIsEmpty(q)) mxFree(q_vec);
-
+        if (q_new) mxFree(q_new);
+        if (l_new) mxFree(l_new);
+        if (u_new) mxFree(u_new);
         return;
     }
 
+#if OSQP_EMBEDDED_MODE == 2
+    /* ---- update_data_mat ---- */
+    if (!strcmp("update_data_mat", cmd)) {
+        const mxArray* mxPx     = prhs[1];
+        const mxArray* mxPx_idx = prhs[2];
+        OSQPInt        Px_n     = (OSQPInt)mxGetScalar(prhs[3]);
+        const mxArray* mxAx     = prhs[4];
+        const mxArray* mxAx_idx = prhs[5];
+        OSQPInt        Ax_n     = (OSQPInt)mxGetScalar(prhs[6]);
 
-    // update lower bound
-    if (!strcmp("update_lower_bound", cmd)) {
+        OSQPFloat* Px     = NULL;
+        OSQPInt*   Px_idx = NULL;
+        OSQPFloat* Ax     = NULL;
+        OSQPInt*   Ax_idx = NULL;
 
-        // Fill l
-        const mxArray *l = prhs[1];
+        if (!mxIsEmpty(mxPx))     Px     = copyToCfloatVector(mxGetPr(mxPx), Px_n);
+        if (!mxIsEmpty(mxPx_idx)) Px_idx = copyDoubleToCintVector(mxGetPr(mxPx_idx), Px_n);
+        if (!mxIsEmpty(mxAx))     Ax     = copyToCfloatVector(mxGetPr(mxAx), Ax_n);
+        if (!mxIsEmpty(mxAx_idx)) Ax_idx = copyDoubleToCintVector(mxGetPr(mxAx_idx), Ax_n);
 
-        // Copy vector to ensure it is cast as c_float
-        c_float *l_vec;
-        if(!mxIsEmpty(l)){
-            l_vec = copyToCfloatVector(mxGetPr(l), (&workspace)->data->m);
-        }
+        osqp_update_data_mat(&solver, Px, Px_idx, Px_n, Ax, Ax_idx, Ax_n);
 
-        if(!mxIsEmpty(l)){
-          osqp_update_lower_bound(&workspace, l_vec);
-        }
+        if (Px)     mxFree(Px);
+        if (Px_idx) mxFree(Px_idx);
+        if (Ax)     mxFree(Ax);
+        if (Ax_idx) mxFree(Ax_idx);
+        return;
+    }
+#endif
 
-        // Free
-        if(!mxIsEmpty(l)) mxFree(l_vec);
+    /* ---- warm_start ---- */
+    if (!strcmp("warm_start", cmd)) {
+        const mxArray* mxX = prhs[1];
+        const mxArray* mxY = prhs[2];
 
+        OSQPInt n, m;
+        osqp_get_dimensions(&solver, &m, &n);
+
+        OSQPFloat* x_vec = NULL;
+        OSQPFloat* y_vec = NULL;
+        if (!mxIsEmpty(mxX)) x_vec = copyToCfloatVector(mxGetPr(mxX), n);
+        if (!mxIsEmpty(mxY)) y_vec = copyToCfloatVector(mxGetPr(mxY), m);
+
+        osqp_warm_start(&solver, x_vec, y_vec);
+
+        if (x_vec) mxFree(x_vec);
+        if (y_vec) mxFree(y_vec);
         return;
     }
 
-
-    // update upper bound
-    if (!strcmp("update_upper_bound", cmd)) {
-
-        // Fill l
-        const mxArray *u = prhs[1];
-
-        // Copy vector to ensure it is cast as c_float
-        c_float *u_vec;
-        if(!mxIsEmpty(u)){
-            u_vec = copyToCfloatVector(mxGetPr(u), (&workspace)->data->m);
-        }
-
-        if(!mxIsEmpty(u)){
-          osqp_update_upper_bound(&workspace, u_vec);
-        }
-
-        // Free
-        if(!mxIsEmpty(u)) mxFree(u_vec);
-
+    /* ---- cold_start ---- */
+    if (!strcmp("cold_start", cmd)) {
+        osqp_cold_start(&solver);
         return;
     }
 
+    /* ---- update_settings ---- */
+    if (!strcmp("update_settings", cmd)) {
+        /* Accept a settings struct and update specific fields */
+        const mxArray* mxSettings = prhs[1];
+        OSQPSettings new_settings;
+        memcpy(&new_settings, solver.settings, sizeof(OSQPSettings));
 
-    // update bounds
-    if (!strcmp("update_bounds", cmd)) {
+        mxArray* f;
+        if ((f = mxGetField(mxSettings, 0, "max_iter")))
+            new_settings.max_iter = (OSQPInt)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "eps_abs")))
+            new_settings.eps_abs = (OSQPFloat)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "eps_rel")))
+            new_settings.eps_rel = (OSQPFloat)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "eps_prim_inf")))
+            new_settings.eps_prim_inf = (OSQPFloat)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "eps_dual_inf")))
+            new_settings.eps_dual_inf = (OSQPFloat)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "rho")))
+            new_settings.rho = (OSQPFloat)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "alpha")))
+            new_settings.alpha = (OSQPFloat)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "warm_starting")))
+            new_settings.warm_starting = (OSQPInt)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "polishing")))
+            new_settings.polishing = (OSQPInt)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "verbose")))
+            new_settings.verbose = (OSQPInt)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "scaled_termination")))
+            new_settings.scaled_termination = (OSQPInt)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "check_termination")))
+            new_settings.check_termination = (OSQPInt)mxGetScalar(f);
+        if ((f = mxGetField(mxSettings, 0, "time_limit")))
+            new_settings.time_limit = (OSQPFloat)mxGetScalar(f);
 
-        // Fill l, u
-        const mxArray *l = prhs[1];
-        const mxArray *u = prhs[2];
-
-        // Copy vectors to ensure they are cast as c_float
-        c_float *l_vec;
-        c_float *u_vec;
-        if(!mxIsEmpty(l)){
-            l_vec = copyToCfloatVector(mxGetPr(l), (&workspace)->data->m);
-        }
-        if(!mxIsEmpty(u)){
-            u_vec = copyToCfloatVector(mxGetPr(u), (&workspace)->data->m);
-        }
-
-        if(!mxIsEmpty(u)){
-            osqp_update_bounds(&workspace, l_vec, u_vec);
-        }
-
-        // Free
-        if(!mxIsEmpty(l)) mxFree(l_vec);
-        if(!mxIsEmpty(u)) mxFree(u_vec);
-
+        osqp_update_settings(&solver, &new_settings);
         return;
     }
 
-    #if EMBEDDED != 1
-    // update matrix P
-    if (!strcmp("update_P", cmd)) {
-
-        // Fill Px and Px_idx
-        const mxArray *Px = prhs[1];
-        const mxArray *Px_idx = prhs[2];
-
-        int Px_n = mxGetScalar(prhs[3]);
-        if(Px_n == 0){
-            Px_n = (&workspace)->data->P->nzmax;
-        }
-
-        // Copy vectors to ensure they are cast as c_float and c_int
-        c_float *Px_vec;
-        c_int *Px_idx_vec = NULL;
-        if(!mxIsEmpty(Px)){
-            Px_vec = copyToCfloatVector(mxGetPr(Px), Px_n);
-        }
-        if(!mxIsEmpty(Px_idx)){
-            Px_idx_vec = copyDoubleToCintVector(mxGetPr(Px_idx), Px_n);
-
-            // Change indexing to match C 0-based one
-            change1To0Indexing(Px_idx_vec, Px_n);
-
-        }
-
-        if(!mxIsEmpty(Px)){
-            osqp_update_P((&workspace), Px_vec, Px_idx_vec, Px_n);
-        }
-
-        // Free
-        if(!mxIsEmpty(Px)) mxFree(Px_vec);
-        if(!mxIsEmpty(Px_idx)) mxFree(Px_idx_vec);
-
-        return;
-    }
-
-    // update matrix A
-    if (!strcmp("update_A", cmd)) {
-
-        // Fill Ax and Ax_idx
-        const mxArray *Ax = prhs[1];
-        const mxArray *Ax_idx = prhs[2];
-
-        int Ax_n = mxGetScalar(prhs[3]);
-        if(Ax_n == 0){
-            Ax_n = (&workspace)->data->A->nzmax;
-        }
-
-        // Copy vectors to ensure they are cast as c_float and c_int
-        c_float *Ax_vec;
-        c_int *Ax_idx_vec = NULL;
-        if(!mxIsEmpty(Ax)){
-            Ax_vec = copyToCfloatVector(mxGetPr(Ax), Ax_n);
-        }
-        if(!mxIsEmpty(Ax_idx)){
-            Ax_idx_vec = copyDoubleToCintVector(mxGetPr(Ax_idx), Ax_n);
-
-            // Change indexing to match C 0-based one
-            change1To0Indexing(Ax_idx_vec, Ax_n);
-        }
-
-        if(!mxIsEmpty(Ax)){
-            osqp_update_A((&workspace), Ax_vec, Ax_idx_vec, Ax_n);
-        }
-
-        // Free
-        if(!mxIsEmpty(Ax)) mxFree(Ax_vec);
-        if(!mxIsEmpty(Ax_idx)) mxFree(Ax_idx_vec);
-
-        return;
-    }
-
-    // update matrices P and A
-    if (!strcmp("update_P_A", cmd)) {
-
-        // Fill vectors
-        const mxArray *Px = prhs[1];
-        const mxArray *Px_idx = prhs[2];
-        const mxArray *Ax = prhs[4];
-        const mxArray *Ax_idx = prhs[5];
-
-        int Px_n = mxGetScalar(prhs[3]);
-        int Ax_n = mxGetScalar(prhs[6]);
-
-        if(Px_n == 0){
-            Px_n = (&workspace)->data->P->nzmax;
-        }
-        if(Ax_n == 0){
-            Ax_n = (&workspace)->data->A->nzmax;
-        }
-
-        // Copy vectors to ensure they are cast as c_float and c_int
-        c_float *Px_vec, *Ax_vec;
-        c_int *Px_idx_vec = NULL;
-        c_int *Ax_idx_vec = NULL;
-        if(!mxIsEmpty(Px)){
-            Px_vec = copyToCfloatVector(mxGetPr(Px), Px_n);
-        }
-        if(!mxIsEmpty(Px_idx)){
-            Px_idx_vec = copyDoubleToCintVector(mxGetPr(Px_idx), Px_n);
-
-            // Change indexing to match C 0-based one
-            change1To0Indexing(Px_idx_vec, Px_n);
-        }
-        if(!mxIsEmpty(Ax)){
-            Ax_vec = copyToCfloatVector(mxGetPr(Ax), Ax_n);
-        }
-        if(!mxIsEmpty(Ax_idx)){
-            Ax_idx_vec = copyDoubleToCintVector(mxGetPr(Ax_idx), Ax_n);
-
-            // Change indexing to match C 0-based one
-            change1To0Indexing(Ax_idx_vec, Ax_n);
-        }
-
-        if(!mxIsEmpty(Ax) && !mxIsEmpty(Px)){
-            osqp_update_P_A((&workspace), Px_vec, Px_idx_vec, Px_n,
-                                          Ax_vec, Ax_idx_vec, Ax_n);
-        }
-
-        // Free
-        if(!mxIsEmpty(Px)) mxFree(Px_vec);
-        if(!mxIsEmpty(Px_idx)) mxFree(Px_idx_vec);
-        if(!mxIsEmpty(Ax)) mxFree(Ax_vec);
-        if(!mxIsEmpty(Ax_idx)) mxFree(Ax_idx_vec);
-
-        return;
-    }
-    #endif  // end EMBEDDED
-
-    // Got here, so command not recognized
     mexErrMsgTxt("Command not recognized.");
 }
-
-c_float* copyToCfloatVector(double* vecData, c_int numel){
-    // This memory needs to be freed!
-
-    c_float* out;
-    c_int i;
-
-    out = mxMalloc(numel * sizeof(c_float));
-
-    //copy data
-    for(i=0; i < numel; i++){
-        out[i] = (c_float)vecData[i];
-    }
-    return out;
-
-}
-
-void castToDoubleArr(c_float *arr, double* arr_out, c_int len){
-    c_int i;
-    for (i = 0; i < len; i++) {
-        arr_out[i] = (double)arr[i];
-    }
-}
-
-void setToNaN(double* arr_out, c_int len){
-    c_int i;
-    for (i = 0; i < len; i++) {
-        arr_out[i] = mxGetNaN();
-    }
-}
-
-#if EMBEDDED != 1
-c_int* copyDoubleToCintVector(double* vecData, c_int numel){
-  // This memory needs to be freed!
-
-  c_int* out;
-  c_int i;
-
-  out = mxMalloc(numel * sizeof(c_int));
-
-  //copy data
-  for(i=0; i < numel; i++){
-      out[i] = (c_int)vecData[i];
-  }
-  return out;
-
-}
-
-void change1To0Indexing(c_int *vecData, c_int numel){
-c_int i; // Indexing
-for(i=0; i < numel; i++){
-vecData[i] -= 1;  // Decrease index by 1
-}
-}
-
-
-#endif  // end EMBEDDED
