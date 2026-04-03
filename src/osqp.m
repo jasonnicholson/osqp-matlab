@@ -100,7 +100,7 @@ classdef osqp < handle
         end
 
         %% has_capability
-        function out = has_capability(this, cap_name)
+        function out = has_capability(~, cap_name)
             % HAS_CAPABILITY check whether a specific capability is available
             %   tf = HAS_CAPABILITY('OSQP_CAPABILITY_CODEGEN')
             cap_val = osqp.constant(cap_name);
@@ -221,7 +221,7 @@ classdef osqp < handle
 
             if isempty(varargin)
                 return;
-            elseif length(varargin) == 1
+            elseif isscalar(varargin)
                 if ~isstruct(varargin{1})
                     error('Single input should be a structure with new problem data');
                 end
@@ -290,7 +290,7 @@ classdef osqp < handle
 
             if isempty(varargin)
                 return;
-            elseif length(varargin) == 1
+            elseif isscalar(varargin)
                 if ~isstruct(varargin{1})
                     error('Single input should be a structure');
                 end
@@ -483,7 +483,7 @@ function currentSettings = validate_settings(this, isInit, varargin)
 
     if isstruct(varargin{1})
         newSettings = varargin{1};
-        assert(length(varargin) == 1, 'Too many input arguments');
+        assert(isscalar(varargin), 'Too many input arguments');
     else
         newSettings = struct(varargin{:});
     end
