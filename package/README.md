@@ -1,23 +1,28 @@
-# Matlab Interface packaging functions
+# MATLAB Interface Packaging Functions
 
-Make sure you have `cmake` on your path, and have cloned the entire source tree (including submodules) locally.
+Make sure you have `cmake` (3.15+) on your path. No submodules are needed — OSQP v1.0.0
+is fetched automatically via CMake FetchContent during the build.
 
+Run `package_osqp.m` from within MATLAB:
+
+```matlab
+cd package
+package_osqp
 ```
-git submodule update --init --recursive
-```
 
-Then simply run `package_osqp.m` from within MATLAB. This will compile the interface and package it as a `osqp-matlab-<platform>64.tar.gz` file.
-This can also be done on the command line:
+This will compile the interface and package it as a `osqp-matlab-<platform>64.tar.gz` file.
+
+From the command line:
 
 ```
 /path/to/matlab -nodisplay -nosplash -nodesktop -r "cd package; package_osqp(); exit;"
 ```
 
-Additionally, you can pass a version number to the `package_osqp` function. This is done automatically for the Linux
-platform by Github actions (by looking at the release tag), but would have to be done manually for Windows/MacOS. For example,
+You can pass a version string to override the auto-detected version:
 
 ```
-/path/to/matlab -nodisplay -nosplash -nodesktop -r "cd package; package_osqp('0.6.2'); exit;"
+/path/to/matlab -nodisplay -nosplash -nodesktop -r "cd package; package_osqp('1.0.0'); exit;"
 ```
 
-Once the `.tar.gz` files for Windows/MacOS have been generated, upload them manually to the appropriate release as assets (Release -> Edit -> Upload files).
+Once the `.tar.gz` files for each platform have been generated, upload them to the
+appropriate GitHub release as assets.

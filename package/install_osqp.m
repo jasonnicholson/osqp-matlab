@@ -1,36 +1,27 @@
 function install_osqp
-    % Install the OSQP solver Matlab interface
+    % Install the OSQP solver MATLAB interface
+    %
+    % This function clones osqp-matlab, builds the MEX interface using
+    % CMake FetchContent (automatically downloads OSQP v1.0.0), and adds
+    % the installation directory to the MATLAB path.
 
-    % Get current operating system
-    if ispc
-        platform = 'windows';
-    elseif ismac
-        platform = 'mac';
-    elseif isunix
-        platform = 'linux';
+    fprintf('Cloning osqp-matlab...');
+    if exist('osqp-matlab', 'dir')
+        rmdir('osqp-matlab', 's');
     end
-
-    fprintf('Downloading binaries...');
-    package_name = sprintf('https://github.com/osqp/osqp-matlab/releases/latest/download/osqp-matlab-%s64.tar.gz', platform);
-    websave('osqp.tar.gz', package_name);
-    fprintf('\t\t\t\t[done]\n');
-
-    fprintf('Unpacking...');
-    untar('osqp.tar.gz','osqp')
-    fprintf('\t\t\t\t\t[done]\n');
-
-    fprintf('Updating path...');
-    cd osqp
-    addpath(genpath(pwd));
-    savepath
-    cd ..
-    fprintf('\t\t\t\t[done]\n');
-
-    fprintf('Deleting temporary files...');
-    delete('osqp.tar.gz');
+    system('git clone https://github.com/osqp/osqp-matlab.git');
     fprintf('\t\t\t[done]\n');
 
-    fprintf('OSQP is successfully installed!\n');
+    fprintf('Building MEX interface...\n');
+    cd('osqp-matlab');
+    make_osqp;
+    fprintf('Building MEX interface...\t\t[done]\n');
 
+    fprintf('Updating path...');
+    addpath(pwd);
+    savepath;
+    fprintf('\t\t\t\t[done]\n');
 
+    cd('..');
+    fprintf('OSQP v%s is successfully installed!\n', osqp.version());
 end

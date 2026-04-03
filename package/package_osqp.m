@@ -1,5 +1,5 @@
 function package_osqp(version)
-%   Create OSQP matlab interface package
+%   Create OSQP MATLAB interface package for distribution
 
 % Get operative system
 if ismac
@@ -7,7 +7,6 @@ if ismac
 elseif isunix
     platform = 'linux';
 else
-    ispc
     platform = 'windows';
 end
 
@@ -17,21 +16,18 @@ fprintf('---------------------\n');
 osqp_dir_matlab = fullfile('..');
 cur_dir = pwd;
 cd(osqp_dir_matlab);
-make_osqp purge;
 make_osqp;
 
 if nargin < 1
   % Get OSQP version
-  s = osqp;
-  version = s.version;
-  clear s;
+  version = osqp.version();
 end
 
 cd(cur_dir)
 
 
 % Create package
-fprintf('Creating Matlab OSQP v%s package\n', version);
+fprintf('Creating MATLAB OSQP v%s package\n', version);
 fprintf('--------------------------------\n');
 
 % Get package name
@@ -54,7 +50,7 @@ fprintf('[done]\n');
 
 % Copying folders
 fprintf('Copying folders...\n');
-folders_to_copy = {'codegen', 'unittests'};
+folders_to_copy = {'codegen', 'unittests', 'examples', 'utils'};
 for i = 1:length(folders_to_copy)
     folder = folders_to_copy{i};
     fprintf('  Copying  %s/%s/...\n', package_name, folder);
@@ -67,7 +63,8 @@ fprintf('[done]\n');
 fprintf('Copying files...\n');
 files_to_copy = {sprintf('osqp_mex.%s', mexext),...
     'osqp.m', ...
-    'run_osqp_tests.m'};
+    'run_osqp_tests.m', ...
+    'README.md'};
 for i=1:length(files_to_copy)
     file = files_to_copy{i};
     fprintf('  Copying  %s/%s...\n', package_name, file);
