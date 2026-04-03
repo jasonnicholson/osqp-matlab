@@ -132,7 +132,7 @@ if any(strcmpi(what, {'osqp','all'}))
     % Configure
     orig_dir = pwd;
     cd(build_dir);
-    [status, output] = system(sprintf('cmake %s "%s"', cmake_args, osqp_root));
+    [status, output] = system(sprintf('cmake %s "%s"', cmake_args, makefile_path));
     if status
         cd(orig_dir);
         fprintf('\n'); disp(output);

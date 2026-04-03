@@ -42,7 +42,7 @@ classdef unconstrained_tests < matlab.unittest.TestCase
 
     methods(Test)
         function test_unconstrained_problem(testCase)
-            [x_ref, y_ref, obj_ref] = load_high_accuracy('test_unconstrained_problem');
+            [x_ref, ~, obj_ref] = load_high_accuracy('test_unconstrained_problem');
             res = testCase.solver.solve();
             testCase.verifyEqual(res.x, x_ref, 'AbsTol', testCase.tol);
             testCase.verifyEqual(res.info.obj_val, obj_ref, 'AbsTol', testCase.tol);

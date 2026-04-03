@@ -15,7 +15,7 @@ q = [3; 4];
 A = sparse([-1 0; 0 -1; -1 -3; 2 5; 3 4]);
 u = [0; 0; -15; 100; 80];
 l = -1e30 * ones(5, 1);
-n = 2;
+n = 2; %#ok<NASGU>
 m = 5;
 
 opts = {'verbose', false, 'polishing', true, 'eps_abs', 1e-8, 'eps_rel', 1e-8};
@@ -297,9 +297,9 @@ fprintf('All reference solutions generated in %s\n', sol_dir);
 end
 
 function save_sol(sol_dir, name, res)
-    x_val = res.x; %#ok<NASGU>
-    y_val = res.y; %#ok<NASGU>
-    obj   = res.info.obj_val; %#ok<NASGU>
+    x_val = res.x;
+    y_val = res.y;
+    obj   = res.info.obj_val;
     save(fullfile(sol_dir, [name '.mat']), 'x_val', 'y_val', 'obj');
     fprintf('  Saved %s.mat\n', name);
 end
