@@ -150,6 +150,14 @@ if any(strcmpi(what, {'osqp','all'}))
         fprintf('\n'); disp(output);
     end
 
+    % Build codegen source staging target
+    [status, output] = system('cmake --build . --target copy_codegen_files --config Release');
+    if status && verbose
+        fprintf('\n(codegen staging skipped)\n');
+    elseif verbose
+        fprintf('\n'); disp(output);
+    end
+
     cd(orig_dir);
     fprintf('\t[done]\n');
 end
@@ -167,8 +175,15 @@ if any(strcmpi(what, {'osqp_mex','all'}))
 
     inc_dirs = { ...
         fullfile(osqp_src_dir, 'include', 'public'), ...
+        fullfile(osqp_src_dir, 'include', 'private'), ...
         fullfile(osqp_bin_dir, 'include', 'public') ...
     };
+
+    % Also find the algebra-specific include dir
+    algebra_inc = fullfile(osqp_src_dir, 'algebra', 'builtin', 'include');
+    if exist(algebra_inc, 'dir')
+        inc_dirs{end+1} = algebra_inc;
+    end
 
     inc_flags = '';
     for k = 1:length(inc_dirs)
@@ -215,15 +230,17 @@ end
 % ---------------------------------------------------------------
 function libpath = findlib(build_dir)
     if ispc
-        pattern = 'osqp.lib';
+        patterns = {'osqpstatic.lib', 'osqp.lib'};
     else
-        pattern = 'libosqp.a';
+        patterns = {'libosqpstatic.a', 'libosqp.a'};
     end
-    f = dir(fullfile(build_dir, '**', pattern));
-    if isempty(f)
-        error('Cannot find %s under %s. Run make_osqp(''osqp'') first.', ...
-              pattern, build_dir);
+    for p = 1:numel(patterns)
+        f = dir(fullfile(build_dir, '**', patterns{p}));
+        if ~isempty(f)
+            libpath = fullfile(f(1).folder, f(1).name);
+            return;
+        end
     end
-    % Prefer the static library in the out/ directory
-    libpath = fullfile(f(1).folder, f(1).name);
+    error('Cannot find OSQP static library under %s. Run make_osqp(''osqp'') first.', ...
+          build_dir);
 end
