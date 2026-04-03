@@ -104,3 +104,20 @@ code/
 \#*\#
 .\#*
 *~
+
+# Build output
+build/
+
+# Coverage reports
+coverage_report/
+
+# Generated codegen output in examples
+examples/codegen_vectors/
+examples/codegen_matrices/
+examples/osqp_demo/
+
+# Stale codegen artifacts (v0.6.x naming)
+examples/*emosqp.c
+examples/*workspace.c
+examples/*workspace.h
+examples/*osqp_configure.h
