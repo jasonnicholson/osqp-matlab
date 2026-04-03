@@ -7,12 +7,14 @@ function result = run_osqp_tests(generateCoverage)
 %   The coverage report (when enabled) is written to coverage_report/ and
 %   covers osqp.m plus everything under codegen/ and utils/.
 
+import matlab.unittest.TestSuite
+import matlab.unittest.TestRunner
+import matlab.unittest.plugins.CodeCoveragePlugin
+import matlab.unittest.plugins.codecoverage.CoverageReport
+
 if nargin < 1
     generateCoverage = false;
 end
-
-import matlab.unittest.TestSuite
-import matlab.unittest.TestRunner
 
 % Get the directory containing this file (= osqp-matlab root)
 osqp_path = fileparts(mfilename('fullpath'));
@@ -28,8 +30,6 @@ unittest_dir = fullfile(osqp_path, 'unittests');
 suite = TestSuite.fromFolder(unittest_dir);
 
 if generateCoverage
-    import matlab.unittest.plugins.CodeCoveragePlugin
-    import matlab.unittest.plugins.codecoverage.CoverageReport
 
     % Collect source files to measure coverage on
     sourceFiles = {fullfile(osqp_path, 'osqp.m')};
