@@ -29,5 +29,8 @@ solver = osqp;
 solver.setup(P, q, A, l, u, 'verbose', true);
 res = solver.solve();
 
+fprintf('Status: %s\n', res.info.status);
+fprintf('Optimal cost: %.4f\n', res.info.obj_val);
 
-%solver.codegen('test')
+% Clean up
+delete(solver);
