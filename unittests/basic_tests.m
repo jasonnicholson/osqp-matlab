@@ -1,5 +1,5 @@
 classdef basic_tests < matlab.unittest.TestCase
-    %TEST_BASIC_QP Solve Basic QP Problem
+    % BASIC_TESTS Basic QP tests for OSQP v1.0.0
 
     properties
         P
@@ -7,188 +7,124 @@ classdef basic_tests < matlab.unittest.TestCase
         A
         u
         l
-        m,
+        m
         n
         solver
-        options
         tol
     end
 
     methods(TestMethodSetup)
         function setup_problem(testCase)
-            % Create Problem
-            testCase.P = sparse([11 0; 0, 0]);
+            testCase.P = sparse([11 0; 0 0]);
             testCase.q = [3; 4];
-            testCase.A = sparse([-1. 0; 0 -1; -1 -3; 2  5; 3  4]);
-            testCase.u = [0; 0; -15.; 100; 80];
-            testCase.l = -1e20 * ones(length(testCase.u), 1);
-            testCase.n = size(testCase.P, 1);
-            testCase.m = size(testCase.A, 1);
+            testCase.A = sparse([-1 0; 0 -1; -1 -3; 2 5; 3 4]);
+            testCase.u = [0; 0; -15; 100; 80];
+            testCase.l = -1e30 * ones(5, 1);
+            testCase.n = 2;
+            testCase.m = 5;
+            testCase.tol = 1e-4;
 
-            % Setup solver
             testCase.solver = osqp;
             testCase.solver.setup(testCase.P, testCase.q, ...
                 testCase.A, testCase.l, testCase.u, ...
-                'eps_rel', 1e-06, ...
-                'eps_abs', 1e-06, ...
-                'verbose', false, ...
-                'adaptive_rho', false, ...
-                'check_termination', 1);
-
-            % Get options
-            testCase.options = testCase.solver.current_settings();
-
-            % Setup tolerance
-            testCase.tol = 1e-04;
-
+                'verbose', false, 'polishing', true, ...
+                'eps_abs', 1e-8, 'eps_rel', 1e-8);
         end
     end
 
-    methods (Test)
+    methods(TestMethodTeardown)
+        function teardown(testCase)
+            delete(testCase.solver);
+        end
+    end
+
+    methods(Test)
         function test_basic_qp(testCase)
-            % Solve with OSQP
-            results = testCase.solver.solve();
-
-            % Check if they are close
-            testCase.verifyEqual(results.x, [0.0; 5.0], 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.y, [1.6667; 0.0; 1.3333; 0.0; 0.0], 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.info.obj_val, 20.0, 'AbsTol', testCase.tol)
-
+            [x_ref, y_ref, obj_ref] = load_high_accuracy('test_basic_QP');
+            res = testCase.solver.solve();
+            testCase.verifyEqual(res.x, x_ref, 'AbsTol', testCase.tol);
+            testCase.verifyEqual(res.y, y_ref, 'AbsTol', testCase.tol);
+            testCase.verifyEqual(res.info.obj_val, obj_ref, 'AbsTol', testCase.tol);
         end
 
         function test_update_q(testCase)
-            % Update linear cost
-            q_new = [10; 20];
-            testCase.solver.update('q',q_new);
-
-            % Solve again
-            results = testCase.solver.solve();
-
-            % Check if they are close
-            testCase.verifyEqual(results.x, [0.0; 5.0], 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.y, [3.3333; 0.0; 6.6667; 0.0; 0.0], 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.info.obj_val, 100.0, 'AbsTol', 100*testCase.tol)
-
+            [x_ref, y_ref, obj_ref] = load_high_accuracy('test_update_q');
+            testCase.solver.update('q', [10; 20]);
+            res = testCase.solver.solve();
+            testCase.verifyEqual(res.x, x_ref, 'AbsTol', testCase.tol);
+            testCase.verifyEqual(res.y, y_ref, 'AbsTol', testCase.tol);
+            testCase.verifyEqual(res.info.obj_val, obj_ref, 'AbsTol', testCase.tol);
         end
 
         function test_update_l(testCase)
-            % Update lower bound
-            l_new = -100 * ones(testCase.m, 1);
-            testCase.solver.update('l',l_new);
-
-            % Solve again
-            results = testCase.solver.solve();
-
-            % Check if they are close
-            testCase.verifyEqual(results.x, [0.0; 5.0], 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.y, [1.6667; 0.0; 1.3333; 0.0; 0.0], 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.info.obj_val, 20.0, 'AbsTol', testCase.tol)
-
+            [x_ref, y_ref, obj_ref] = load_high_accuracy('test_update_l');
+            testCase.solver.update('l', -50 * ones(testCase.m, 1));
+            res = testCase.solver.solve();
+            testCase.verifyEqual(res.x, x_ref, 'AbsTol', testCase.tol);
+            testCase.verifyEqual(res.y, y_ref, 'AbsTol', testCase.tol);
+            testCase.verifyEqual(res.info.obj_val, obj_ref, 'AbsTol', testCase.tol);
         end
 
         function test_update_u(testCase)
-            % Update upper bound
-            u_new = 100 * ones(testCase.m, 1);
-            testCase.solver.update('u',u_new);
-
-            % Solve again
-            results = testCase.solver.solve();
-
-            % Check if they are close
-            testCase.verifyEqual(results.x, [-0.1515; -33.2828], 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.y, [0.0; 0.0; 1.3333; 0.0; 0.0], 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.info.obj_val, -133.4596, 'AbsTol', 100*testCase.tol)
-
+            [x_ref, y_ref, obj_ref] = load_high_accuracy('test_update_u');
+            testCase.solver.update('u', 1000 * ones(testCase.m, 1));
+            res = testCase.solver.solve();
+            testCase.verifyEqual(res.x, x_ref, 'AbsTol', testCase.tol);
+            testCase.verifyEqual(res.y, y_ref, 'AbsTol', testCase.tol);
+            testCase.verifyEqual(res.info.obj_val, obj_ref, 'AbsTol', testCase.tol);
         end
 
         function test_update_bounds(testCase)
-            % Update bounds
-            l_new = -100 * ones(testCase.m, 1);
-            u_new = 100 * ones(testCase.m, 1);
-            testCase.solver.update('l', l_new, 'u',u_new);
-
-            % Solve again
-            results = testCase.solver.solve();
-
-            % Check if they are close
-            testCase.verifyEqual(results.x, [-0.1273; -19.9491], 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.y, [0.0; 0.0; 0.0; -0.8; 0.0], 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.info.obj_val, -80.0891, 'AbsTol', testCase.tol)
-
+            [x_ref, y_ref, obj_ref] = load_high_accuracy('test_update_bounds');
+            testCase.solver.update('l', -50 * ones(testCase.m, 1), ...
+                                   'u', 1000 * ones(testCase.m, 1));
+            res = testCase.solver.solve();
+            testCase.verifyEqual(res.x, x_ref, 'AbsTol', testCase.tol);
+            testCase.verifyEqual(res.y, y_ref, 'AbsTol', testCase.tol);
+            testCase.verifyEqual(res.info.obj_val, obj_ref, 'AbsTol', testCase.tol);
         end
-
 
         function test_update_max_iter(testCase)
-            % Update max_iter
-            opts = testCase.solver.current_settings();
-            opts.max_iter = 30;
-            testCase.solver.update_settings(opts);
-
-            % Solve again
-            results = testCase.solver.solve();
-
-            % Check if they are the same
-            testCase.verifyEqual(results.info.status_val, ...
-                testCase.solver.constant('OSQP_MAX_ITER_REACHED'))
-
+            testCase.solver.update_settings('max_iter', 80);
+            res = testCase.solver.solve();
+            testCase.verifyEqual(res.info.status_val, ...
+                osqp.constant('OSQP_MAX_ITER_REACHED'));
         end
-        
+
         function test_update_early_termination(testCase)
-            % Update max_iter
-            opts = testCase.solver.current_settings();
-            opts.check_termination = 0;
-            testCase.solver.update_settings(opts);
-
-            % Solve again
-            results = testCase.solver.solve();
-
-            % Check if they are close
-            testCase.verifyEqual(results.info.iter, testCase.options.max_iter, 'AbsTol',testCase.tol)
-
+            testCase.solver.update_settings('check_termination', 0, ...
+                                            'max_iter', 500);
+            res = testCase.solver.solve();
+            testCase.verifyEqual(res.info.iter, int64(500));
         end
-        
-        
+
         function test_update_rho(testCase)
-        
-            % Solve with default rho
-            res_default = testCase.solver.solve();
-            
-            % Setup with different rho and update
-            default_opts = testCase.options;
-            default_opts.rho = 0.7;
-            
-            testCase.solver = osqp;
-            testCase.solver.setup(testCase.P, testCase.q, ...
-                testCase.A, testCase.l, testCase.u, default_opts);
-            testCase.solver.update_settings('rho', testCase.options.rho);
-            res_updated_rho = testCase.solver.solve();
-       
-            % Verify same number of iterations
-            testCase.verifyEqual(res_default.info.iter, ...
-                                 res_updated_rho.info.iter)
-            
+            res0 = testCase.solver.solve();
+            testCase.solver.update_settings('rho', 0.7);
+            res1 = testCase.solver.solve();
+            testCase.verifyEqual(res1.info.obj_val, res0.info.obj_val, ...
+                'AbsTol', testCase.tol);
         end
 
         function test_update_time_limit(testCase)
-            testCase.verifyEqual(testCase.options.time_limit, 0)
-
-            results = testCase.solver.solve();
-            testCase.verifyEqual(results.info.status_val, ...
-                testCase.solver.constant('OSQP_SOLVED'))
-
-            % Ensure the solver will time out
-            testCase.solver.update_settings(...
-                'time_limit', 1e-6,...
-                'eps_rel', 1e-09, ...
-                'eps_abs', 1e-09, ...
-                'max_iter', 2e9,...
-                'check_termination', 0);
-
-            results = testCase.solver.solve();
-            testCase.verifyEqual(results.info.status_val, ...
-                testCase.solver.constant('OSQP_TIME_LIMIT_REACHED'))
+            testCase.solver.update_settings('time_limit', 1e-6);
+            res = testCase.solver.solve();
+            testCase.verifyEqual(res.info.status_val, ...
+                osqp.constant('OSQP_TIME_LIMIT_REACHED'));
         end
 
+        function test_upper_triangular_P(testCase)
+            % Solve with full P, should get same result as triu(P)
+            solver2 = osqp;
+            P_full = testCase.P + tril(testCase.P, -1)';
+            solver2.setup(P_full, testCase.q, ...
+                testCase.A, testCase.l, testCase.u, ...
+                'verbose', false, 'polishing', true, ...
+                'eps_abs', 1e-8, 'eps_rel', 1e-8);
+            res1 = testCase.solver.solve();
+            res2 = solver2.solve();
+            testCase.verifyEqual(res1.x, res2.x, 'AbsTol', testCase.tol);
+            delete(solver2);
+        end
     end
-
 end

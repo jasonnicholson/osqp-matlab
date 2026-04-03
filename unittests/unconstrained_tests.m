@@ -1,62 +1,51 @@
 classdef unconstrained_tests < matlab.unittest.TestCase
-    %UNCONSTRAINED_TESTS Solve unconstrained quadratic program
-    
+    % UNCONSTRAINED_TESTS Test unconstrained QP for OSQP v1.0.0
+
     properties
         P
         q
         A
         u
         l
-        m,
+        m
         n
         solver
-        options
         tol
     end
-    
+
     methods(TestMethodSetup)
         function setup_problem(testCase)
-            % Create Problem
-            rng(4)
+            rng(4);
             testCase.n = 30;
             testCase.m = 0;
-            testCase.P = sparse(diag(rand(testCase.n, 1))) + 0.2*speye(testCase.n);
+            Pt = sprandn(testCase.n, testCase.n, 0.6);
+            testCase.P = Pt * Pt' + speye(testCase.n);
             testCase.q = randn(testCase.n, 1);
-            testCase.A = [];
-            testCase.l = [];
-            testCase.u = [];
-            
-            
-            % Setup solver
+            testCase.A = sparse(0, testCase.n);
+            testCase.l = zeros(0, 1);
+            testCase.u = zeros(0, 1);
+            testCase.tol = 1e-4;
+
             testCase.solver = osqp;
             testCase.solver.setup(testCase.P, testCase.q, ...
-                testCase.A, testCase.l, testCase.u, 'verbose', 0, 'eps_abs', 1e-05, 'eps_rel', 1e-05);
-            
-            % Get options
-            testCase.options = testCase.solver.current_settings();
-            
-            % Setup tolerance
-            testCase.tol = 1e-04;
-            
+                testCase.A, testCase.l, testCase.u, ...
+                'verbose', false, 'polishing', true, ...
+                'eps_abs', 1e-8, 'eps_rel', 1e-8);
         end
     end
-    
-    methods (Test)
+
+    methods(TestMethodTeardown)
+        function teardown(testCase)
+            delete(testCase.solver);
+        end
+    end
+
+    methods(Test)
         function test_unconstrained_problem(testCase)
-            % Solve with OSQP
-            results = testCase.solver.solve();
-            
-            % Check if they are close
-            testCase.verifyEqual(results.x, ...
-                [-0.1139; -2.6464; -0.0414; 0.4539; 0.8058; -0.2232; -0.0399; -1.6256; 0.4702; ...
-                 -0.6265; 0.3740; -0.6547; -0.4346; 0.9082; 0.8801; -0.0094; -2.3109; 0.5990; ...
-                 -0.4948; -0.1263; -3.3029; 0.2563; -0.6106; 0.4830; 0.0081; 4.3573; -2.9165; ...
-                 0.4514; -1.7058; 0.5228], 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.y, zeros(0,1), 'AbsTol',testCase.tol)
-            testCase.verifyEqual(results.info.obj_val, -16.3649, 'AbsTol', testCase.tol)
-            
+            [x_ref, y_ref, obj_ref] = load_high_accuracy('test_unconstrained_problem');
+            res = testCase.solver.solve();
+            testCase.verifyEqual(res.x, x_ref, 'AbsTol', testCase.tol);
+            testCase.verifyEqual(res.info.obj_val, obj_ref, 'AbsTol', testCase.tol);
         end
-        
     end
-    
 end

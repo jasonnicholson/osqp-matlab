@@ -1,116 +1,87 @@
 classdef dual_infeasibility_tests < matlab.unittest.TestCase
+    % DUAL_INFEASIBILITY_TESTS Test dual infeasibility detection for OSQP v1.0.0
 
     properties
-        P
-        q
-        A
-        u
-        l
-        m,
-        n
-        solver
-        options
+        opts
         tol
     end
 
     methods(TestMethodSetup)
         function setup_problem(testCase)
-
-            % Set options
-            testCase.options = struct;
-            testCase.options.verbose = 0;
-            testCase.options.rho = 0.01;
-            testCase.options.eps_abs = 1e-04;
-            testCase.options.eps_rel = 1e-04;
-            testCase.options.eps_prim_inf = 1e-15;  % Focus only on dual infeasibility
-            testCase.options.check_termination = 1;
-
-            % Setup tolerance
-            testCase.tol = 1e-04;
-
+            testCase.opts = struct('verbose', false, ...
+                'eps_prim_inf', 1e-15, ...
+                'polishing', true);
+            testCase.tol = 1e-4;
         end
     end
 
-    methods (Test)
+    methods(Test)
         function test_dual_infeasible_lp(testCase)
+            P = sparse(2, 2);
+            q = [2; -1];
+            A = speye(2);
+            l = [0; 0];
+            u = Inf(2, 1);
 
+            solver = osqp;
+            solver.setup(P, q, A, l, u, testCase.opts);
+            res = solver.solve();
 
-            % unbouned example
-            testCase.P = [];
-            testCase.q = [2; -1];
-            testCase.A = speye(2);
-            testCase.l = [0; 0];
-            testCase.u = [];
+            testCase.verifyEqual(res.info.status_val, ...
+                osqp.constant('OSQP_DUAL_INFEASIBLE'));
 
-            % Setup solver
-            testCase.solver = osqp;
-            testCase.solver.setup(testCase.P, testCase.q, ...
-                testCase.A, testCase.l, testCase.u, testCase.options);
+            % Verify dual infeasibility certificate
+            data = load(fullfile(fileparts(mfilename('fullpath')), ...
+                'solutions', 'test_dual_infeasibility.mat'));
+            cert = res.dual_inf_cert / norm(res.dual_inf_cert);
+            testCase.verifyEqual(cert, ...
+                data.lp_normalized_dual_inf_cert_correct(:), ...
+                'AbsTol', testCase.tol);
 
-            % Solve with OSQP
-            results = testCase.solver.solve();
-
-            % Check if they are close
-            testCase.verifyEqual(results.info.status_val, ...
-                                 testCase.solver.constant('OSQP_DUAL_INFEASIBLE'), ...
-                                 'AbsTol', testCase.tol)
-
+            delete(solver);
         end
 
         function test_dual_infeasible_qp(testCase)
+            P = sparse(diag([4; 0]));
+            q = [0; 2];
+            A = sparse([1 1; -1 1]);
+            l = [-Inf; -Inf];
+            u = [2; 3];
 
+            solver = osqp;
+            solver.setup(P, q, A, l, u, testCase.opts);
+            res = solver.solve();
 
-            % unbouned example
-            testCase.P = sparse(diag([4; 0]));
-            testCase.q = [0; 2];
-            testCase.A = sparse([1 1; -1 1]);
-            testCase.l = [];
-            testCase.u = [2; 3];
+            testCase.verifyEqual(res.info.status_val, ...
+                osqp.constant('OSQP_DUAL_INFEASIBLE'));
 
-            % Setup solver
-            testCase.solver = osqp;
-            testCase.solver.setup(testCase.P, testCase.q, ...
-                testCase.A, testCase.l, testCase.u, testCase.options);
+            % Verify dual infeasibility certificate
+            data = load(fullfile(fileparts(mfilename('fullpath')), ...
+                'solutions', 'test_dual_infeasibility.mat'));
+            cert = res.dual_inf_cert / norm(res.dual_inf_cert);
+            testCase.verifyEqual(cert, ...
+                data.qp_normalized_dual_inf_cert_correct(:), ...
+                'AbsTol', testCase.tol);
 
-            % Solve with OSQP
-            results = testCase.solver.solve();
-
-            % Check if they are close
-            testCase.verifyEqual(results.info.status_val, ...
-                                 testCase.solver.constant('OSQP_DUAL_INFEASIBLE'), ...
-                                 'AbsTol', testCase.tol)
-
+            delete(solver);
         end
 
         function test_primal_dual_infeasible(testCase)
-            testCase.P = sparse(2,2);
-            testCase.q = [-1;-1];
-            testCase.A = sparse([1 -1; -1 1;1 0;0 1]);
-            testCase.l = [1; 1; 0; 0];
-            testCase.u = Inf(4,1);
+            P = sparse(2, 2);
+            q = [-1; -1];
+            A = sparse([1 -1; -1 1; 1 0; 0 1]);
+            l = [1; 1; 0; 0];
+            u = Inf(4, 1);
 
-            % Setup solver
-            testCase.solver = osqp;
-            testCase.solver.setup(testCase.P, testCase.q, ...
-                testCase.A, testCase.l, testCase.u, testCase.options);
+            solver = osqp;
+            solver.setup(P, q, A, l, u, testCase.opts);
+            res = solver.solve();
 
-            % Set warm starting points to avoid primal infeasibility detection at
-            % first step
-            x = 25*ones(2,1);
-            y = -2*ones(4,1);
-            testCase.solver.warm_start('x', x, 'y', y);
+            testCase.verifyTrue( ...
+                res.info.status_val == osqp.constant('OSQP_PRIMAL_INFEASIBLE') || ...
+                res.info.status_val == osqp.constant('OSQP_DUAL_INFEASIBLE'));
 
-            % Solve with OSQP
-            results = testCase.solver.solve();
-
-            % Check that the solver status is correct
-            testCase.verifyThat(results.info.status_val, ...
-                                matlab.unittest.constraints.IsSubsetOf([ ...
-                                    testCase.solver.constant('OSQP_PRIMAL_INFEASIBLE'), ...
-                                    testCase.solver.constant('OSQP_DUAL_INFEASIBLE')]));
-
+            delete(solver);
         end
-
     end
-
 end
