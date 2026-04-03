@@ -30,10 +30,18 @@ classdef update_matrices_tests < matlab.unittest.TestCase
             testCase.u =  2 * ones(testCase.m, 1);
             testCase.tol = 1e-4;
 
-            % New matrices (same sparsity pattern)
-            Pt_new = sprandn(testCase.n, testCase.n, p);
-            testCase.P_new = Pt_new * Pt_new' + speye(testCase.n);
-            testCase.A_new = sprandn(testCase.m, testCase.n, p);
+            % New matrices with SAME sparsity pattern as originals
+            % P_new: replace values in triu(P) pattern, keep PSD
+            P_triu = triu(testCase.P);
+            [pi, pj, ~] = find(P_triu);
+            P_new_vals = randn(nnz(P_triu), 1);
+            P_triu_new = sparse(pi, pj, P_new_vals, testCase.n, testCase.n);
+            testCase.P_new = P_triu_new + triu(P_triu_new, 1)' + 5*speye(testCase.n);
+
+            % A_new: replace values in A pattern
+            [ai, aj, ~] = find(testCase.A);
+            A_new_vals = randn(nnz(testCase.A), 1);
+            testCase.A_new = sparse(ai, aj, A_new_vals, testCase.m, testCase.n);
 
             testCase.solver = osqp;
             testCase.solver.setup(testCase.P, testCase.q, ...

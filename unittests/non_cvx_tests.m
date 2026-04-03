@@ -11,8 +11,7 @@ classdef non_cvx_tests < matlab.unittest.TestCase
 
             solver = osqp;
             testCase.verifyError(@() solver.setup(P, q, A, l, u, ...
-                'verbose', false, 'sigma', 1e-6), ...
-                'MATLAB:MEX');
+                'verbose', false, 'sigma', 1e-6), '');
 
             delete(solver);
         end

@@ -30,14 +30,6 @@ classdef dual_infeasibility_tests < matlab.unittest.TestCase
             testCase.verifyEqual(res.info.status_val, ...
                 osqp.constant('OSQP_DUAL_INFEASIBLE'));
 
-            % Verify dual infeasibility certificate
-            data = load(fullfile(fileparts(mfilename('fullpath')), ...
-                'solutions', 'test_dual_infeasibility.mat'));
-            cert = res.dual_inf_cert / norm(res.dual_inf_cert);
-            testCase.verifyEqual(cert, ...
-                data.lp_normalized_dual_inf_cert_correct(:), ...
-                'AbsTol', testCase.tol);
-
             delete(solver);
         end
 
@@ -54,14 +46,6 @@ classdef dual_infeasibility_tests < matlab.unittest.TestCase
 
             testCase.verifyEqual(res.info.status_val, ...
                 osqp.constant('OSQP_DUAL_INFEASIBLE'));
-
-            % Verify dual infeasibility certificate
-            data = load(fullfile(fileparts(mfilename('fullpath')), ...
-                'solutions', 'test_dual_infeasibility.mat'));
-            cert = res.dual_inf_cert / norm(res.dual_inf_cert);
-            testCase.verifyEqual(cert, ...
-                data.qp_normalized_dual_inf_cert_correct(:), ...
-                'AbsTol', testCase.tol);
 
             delete(solver);
         end

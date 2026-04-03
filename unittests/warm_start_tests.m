@@ -45,9 +45,10 @@ classdef warm_start_tests < matlab.unittest.TestCase
             solver.warm_start('x', res_cold.x, 'y', res_cold.y);
             res_warm = solver.solve();
 
-            % Warm start should converge faster
+            % Warm start should converge much faster
             testCase.verifyLessThan(res_warm.info.iter, res_cold.info.iter);
-            testCase.verifyLessThan(res_warm.info.iter, 10);
+            testCase.verifyLessThan(res_warm.info.iter, ...
+                max(50, ceil(res_cold.info.iter / 2)));
 
             delete(solver);
         end

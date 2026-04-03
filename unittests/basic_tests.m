@@ -95,7 +95,7 @@ classdef basic_tests < matlab.unittest.TestCase
             testCase.solver.update_settings('check_termination', 0, ...
                                             'max_iter', 500);
             res = testCase.solver.solve();
-            testCase.verifyEqual(res.info.iter, int64(500));
+            testCase.verifyEqual(res.info.iter, 500);
         end
 
         function test_update_rho(testCase)
