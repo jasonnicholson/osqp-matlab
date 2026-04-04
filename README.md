@@ -154,6 +154,7 @@ Code generation options: `'parameters'` (`'vectors'` or `'matrices'`), `'force_r
 | `verbose` | true | Enable printing |
 | `linsys_solver` | `'direct'` | Linear system solver (`'direct'`/`'indirect'`) |
 | `scaling` | 10 | Number of scaling iterations (0 = disabled) |
+| `scaled_termination` | false | Check convergence in scaled space (true) or unscaled (false, matches C default) |
 | `alpha` | 1.6 | ADMM relaxation parameter |
 | `check_termination` | 25 | Check termination every N iterations |
 

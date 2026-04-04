@@ -69,8 +69,9 @@ classdef Solver < handle
         OSQP_INFTY = 1e30
 
         % Threshold for treating bounds as infinite (matches C:
-        % OSQP_INFTY * MIN_SCALING = 1e30 * 1e-4 = 1e26)
-        OSQP_INFTY_THRESH = 1e26
+        % OSQP_INFTY * MIN_SCALING).  Derived so it auto-adjusts
+        % if either constant changes.
+        OSQP_INFTY_THRESH = 1e30 * 1e-4   % = OSQP_INFTY * MIN_SCALING
 
         % Adaptive rho: C v1.0 uses iteration-count-based interval
         ADAPTIVE_RHO_MULTIPLE_TERMINATION = 4
@@ -291,7 +292,7 @@ classdef Solver < handle
                     [converged, status_val] = osqp.Solver.checkConvergence( ...
                         xs, zs, ys, xs_prev, ys_prev, ...
                         obj.Ps, obj.qs, obj.As, obj.ls, obj.us, ...
-                        n, m, s);
+                        n, m, s, obj.scl);
                     if converged
                         break;
                     end
@@ -303,7 +304,7 @@ classdef Solver < handle
                     [conv_tl, sv_tl] = osqp.Solver.checkConvergence( ...
                         xs, zs, ys, xs_prev, ys_prev, ...
                         obj.Ps, obj.qs, obj.As, obj.ls, obj.us, ...
-                        n, m, s, true);  % approximate = true
+                        n, m, s, obj.scl, true);  % approximate = true
                     if conv_tl
                         status_val = sv_tl;
                     else
@@ -342,14 +343,14 @@ classdef Solver < handle
                 [~, status_val] = osqp.Solver.checkConvergence( ...
                     xs, zs, ys, xs_prev, ys_prev, ...
                     obj.Ps, obj.qs, obj.As, obj.ls, obj.us, ...
-                    n, m, s);
+                    n, m, s, obj.scl);
                 % If still unsolved, try approximate check (10x tolerances)
                 % matching C code's post-loop check_termination(solver, 1)
                 if status_val == osqp.Solver.STATUS_UNSOLVED
                     [~, status_val] = osqp.Solver.checkConvergence( ...
                         xs, zs, ys, xs_prev, ys_prev, ...
                         obj.Ps, obj.qs, obj.As, obj.ls, obj.us, ...
-                        n, m, s, true);  % approximate = true
+                        n, m, s, obj.scl, true);  % approximate = true
                 end
                 if status_val == osqp.Solver.STATUS_UNSOLVED
                     status_val = osqp.Solver.STATUS_MAX_ITER_REACHED;
@@ -891,12 +892,24 @@ classdef Solver < handle
 
         function [converged, status_val] = checkConvergence( ...
                 xs, zs, ys, xs_prev, ys_prev, ...
-                Ps, qs, As, ls, us, ~, m, s, approximate)
-            % Check convergence. When approximate=true, uses 10x tolerances
-            % and returns INACCURATE status variants (matching C code).
-            if nargin < 14, approximate = false; end
+                Ps, qs, As, ls, us, ~, m, s, scl, approximate)
+            % CHECKCONVERGENCE  Termination checks matching C code.
+            %
+            %   When s.scaled_termination is true (or scaling is off),
+            %   all comparisons use scaled quantities directly.
+            %
+            %   When s.scaled_termination is false (C default) and
+            %   scaling is active, residuals and tolerances are unscaled
+            %   using D, Dinv, E, Einv, c, cinv from scl.
+            %
+            %   When approximate=true, uses 10x tolerances and returns
+            %   INACCURATE status variants.
+            if nargin < 15, approximate = false; end
             status_val = osqp.Solver.STATUS_UNSOLVED;
             converged  = false;
+
+            % Determine whether to unscale
+            do_unscale = s.scaling > 0 && ~s.scaled_termination;
 
             if approximate
                 tol_mult = 10;
@@ -907,17 +920,40 @@ classdef Solver < handle
             Pfull = Ps + Ps' - diag(diag(Ps));
             Pxs = Pfull * xs;
 
-            % --- Check for divergence (non-convexity) ---
+            % --- Primal residual ---
             if m > 0
-                prim_res = norm(As * xs - zs, inf);
+                prim_resid_vec = As * xs - zs;
+                Axs = As * xs;
+            else
+                prim_resid_vec = zeros(0, 1);
+                Axs = zeros(0, 1);
+            end
+
+            if m > 0
+                if do_unscale
+                    prim_res = norm(scl.Einv .* prim_resid_vec, inf);
+                else
+                    prim_res = norm(prim_resid_vec, inf);
+                end
             else
                 prim_res = 0;
             end
+
+            % --- Dual residual ---
             if m > 0
-                dual_res = norm(Pxs + qs + As' * ys, inf);
+                Atys = As' * ys;
+                dual_resid_vec = Pxs + qs + Atys;
             else
-                dual_res = norm(Pxs + qs, inf);
+                Atys = zeros(size(qs));
+                dual_resid_vec = Pxs + qs;
             end
+            if do_unscale
+                dual_res = scl.cinv * norm(scl.Dinv .* dual_resid_vec, inf);
+            else
+                dual_res = norm(dual_resid_vec, inf);
+            end
+
+            % --- Check for divergence (non-convexity) ---
             if prim_res > osqp.Solver.OSQP_INFTY || ...
                     dual_res > osqp.Solver.OSQP_INFTY
                 status_val = osqp.Solver.STATUS_NON_CONVEX;
@@ -925,23 +961,40 @@ classdef Solver < handle
                 return;
             end
 
-            % Adaptive tolerances
+            % --- Primal tolerance ---
             if m > 0
-                Axs_norm = norm(As * xs, inf);
-                zs_norm  = norm(zs, inf);
-                eps_prim = tol_mult * (s.eps_abs + s.eps_rel * max(Axs_norm, zs_norm));
+                if do_unscale
+                    max_rel_prim = max( ...
+                        norm(scl.Einv .* zs, inf), ...
+                        norm(scl.Einv .* Axs, inf));
+                else
+                    max_rel_prim = max(norm(zs, inf), norm(Axs, inf));
+                end
+                eps_prim = tol_mult * (s.eps_abs + s.eps_rel * max_rel_prim);
             else
                 eps_prim = tol_mult * s.eps_abs;
             end
-            Pxs_norm  = norm(Pxs, inf);
-            Atys_norm = 0;
-            if m > 0
-                Atys_norm = norm(As' * ys, inf);
-            end
-            qs_norm  = norm(qs, inf);
-            eps_dual = tol_mult * (s.eps_abs + s.eps_rel * max([Pxs_norm; Atys_norm; qs_norm]));
 
-            % Optimality
+            % --- Dual tolerance ---
+            if do_unscale
+                max_rel_dual = norm(scl.Dinv .* qs, inf);
+                if m > 0
+                    max_rel_dual = max(max_rel_dual, ...
+                        norm(scl.Dinv .* Atys, inf));
+                end
+                max_rel_dual = max(max_rel_dual, ...
+                    norm(scl.Dinv .* Pxs, inf));
+                max_rel_dual = max_rel_dual * scl.cinv;
+            else
+                max_rel_dual = norm(qs, inf);
+                if m > 0
+                    max_rel_dual = max(max_rel_dual, norm(Atys, inf));
+                end
+                max_rel_dual = max(max_rel_dual, norm(Pxs, inf));
+            end
+            eps_dual = tol_mult * (s.eps_abs + s.eps_rel * max_rel_dual);
+
+            % --- Optimality ---
             if prim_res <= eps_prim && dual_res <= eps_dual
                 if approximate
                     status_val = osqp.Solver.STATUS_SOLVED_INACCURATE;
@@ -952,57 +1005,115 @@ classdef Solver < handle
                 return;
             end
 
-            % Primal infeasibility (certificate: delta_y)
+            % --- Primal infeasibility (certificate: delta_y) ---
             if m > 0
-                dy      = ys - ys_prev;
-                norm_dy = norm(dy, inf);
-                eps_pi  = tol_mult * s.eps_prim_inf;
+                dy  = ys - ys_prev;
+                eps_pi = tol_mult * s.eps_prim_inf;
+
+                % Project delta_y onto the polar of the recession cone
+                INF_THRESH = osqp.Solver.OSQP_INFTY * osqp.Solver.MIN_SCALING;
+                for i = 1:m
+                    li_fin = abs(ls(i)) < INF_THRESH;
+                    ui_fin = abs(us(i)) < INF_THRESH;
+                    if ~li_fin && ~ui_fin
+                        dy(i) = 0;
+                    elseif ~li_fin
+                        dy(i) = min(dy(i), 0);
+                    elseif ~ui_fin
+                        dy(i) = max(dy(i), 0);
+                    end
+                end
+
+                % Compute norm (unscale if needed)
+                if do_unscale
+                    norm_dy = norm(scl.E .* dy, inf);
+                else
+                    norm_dy = norm(dy, inf);
+                end
+
                 if norm_dy > eps_pi
-                    dy_n  = dy / norm_dy;
-                    ATdy  = norm(As' * dy_n, inf);
-                    lu_ok = osqp.Solver.primalInfCheck(dy_n, ls, us, eps_pi);
-                    if ATdy <= eps_pi && lu_ok
-                        if approximate
-                            status_val = osqp.Solver.STATUS_PRIMAL_INFEASIBLE_INACCURATE;
-                        else
-                            status_val = osqp.Solver.STATUS_PRIMAL_INFEASIBLE;
+                    % Support function check: u'*max(dy,0) + l'*min(dy,0)
+                    sup_val = 0;
+                    for i = 1:m
+                        if abs(us(i)) < INF_THRESH
+                            sup_val = sup_val + us(i) * max(dy(i), 0);
                         end
-                        converged = true;
-                        return;
+                        if abs(ls(i)) < INF_THRESH
+                            sup_val = sup_val + ls(i) * min(dy(i), 0);
+                        end
+                    end
+
+                    if sup_val < 0
+                        ATdy = As' * dy;
+                        if do_unscale
+                            ATdy = scl.Dinv .* ATdy;
+                        end
+                        if norm(ATdy, inf) < eps_pi * norm_dy
+                            if approximate
+                                status_val = osqp.Solver.STATUS_PRIMAL_INFEASIBLE_INACCURATE;
+                            else
+                                status_val = osqp.Solver.STATUS_PRIMAL_INFEASIBLE;
+                            end
+                            converged = true;
+                            return;
+                        end
                     end
                 end
             end
 
-            % Dual infeasibility (certificate: delta_x)
-            dx      = xs - xs_prev;
-            norm_dx = norm(dx, inf);
-            eps_di  = tol_mult * s.eps_dual_inf;
-            if norm_dx > eps_di
-                dx_n = dx / norm_dx;
-                Pdx  = norm(Pfull * dx_n, inf);
-                qdx  = qs' * dx_n;
-                if Pdx <= eps_di && qdx < -eps_di
-                    if m > 0
-                        Adx = As * dx_n;
-                        ok  = osqp.Solver.dualInfCheck(Adx, ls, us, eps_di);
-                    else
-                        ok = true;
+            % --- Dual infeasibility (certificate: delta_x) ---
+            dx = xs - xs_prev;
+            eps_di = tol_mult * s.eps_dual_inf;
+
+            % Compute norm and cost_scaling (unscale if needed)
+            if do_unscale
+                norm_dx = norm(scl.D .* dx, inf);
+                cost_scaling = scl.c;
+            else
+                norm_dx = norm(dx, inf);
+                cost_scaling = 1.0;
+            end
+
+            if norm_dx > osqp.Solver.DIVISION_TOL
+                % Check q' * delta_x < 0
+                qdx = qs' * dx;
+                if qdx < 0
+                    % Check ||P * delta_x|| < cost_scaling * eps * ||delta_x||
+                    Pdx = Pfull * dx;
+                    if do_unscale
+                        Pdx = scl.Dinv .* Pdx;
                     end
-                    if ok
-                        if approximate
-                            status_val = osqp.Solver.STATUS_DUAL_INFEASIBLE_INACCURATE;
+                    if norm(Pdx, inf) < cost_scaling * eps_di * norm_dx
+                        % Check A * delta_x in recession cone of [l, u]
+                        if m > 0
+                            Adx = As * dx;
+                            if do_unscale
+                                Adx = scl.Einv .* Adx;
+                            end
+                            ok = osqp.Solver.dualInfCheck( ...
+                                Adx, ls, us, eps_di * norm_dx);
                         else
-                            status_val = osqp.Solver.STATUS_DUAL_INFEASIBLE;
+                            ok = true;
                         end
-                        converged = true;
-                        return;
+                        if ok
+                            if approximate
+                                status_val = osqp.Solver.STATUS_DUAL_INFEASIBLE_INACCURATE;
+                            else
+                                status_val = osqp.Solver.STATUS_DUAL_INFEASIBLE;
+                            end
+                            converged = true;
+                            return;
+                        end
                     end
                 end
             end
         end
 
         function ok = primalInfCheck(v, l, u, eps)
-            INF_THRESH = osqp.Solver.OSQP_INFTY_THRESH;
+            % Support function of polar recession cone.
+            % Used only as a helper — the main primal inf check
+            % is now inline in checkConvergence with proper unscaling.
+            INF_THRESH = osqp.Solver.OSQP_INFTY * osqp.Solver.MIN_SCALING;
             vpos = max(v, 0);
             vneg = min(v, 0);
             val  = 0;
@@ -1014,7 +1125,10 @@ classdef Solver < handle
         end
 
         function ok = dualInfCheck(Adx, l, u, eps)
-            INF_THRESH = osqp.Solver.OSQP_INFTY_THRESH;
+            % Check whether Adx lies in the recession cone of [l, u].
+            % eps is pre-multiplied by norm_delta_x by the caller,
+            % matching C code's in_reccone(Adx, l, u, thr, eps*norm).
+            INF_THRESH = osqp.Solver.OSQP_INFTY * osqp.Solver.MIN_SCALING;
             ok = true;
             for i = 1:numel(l)
                 li = l(i); ui = u(i);

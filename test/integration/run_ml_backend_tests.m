@@ -52,7 +52,7 @@ solver3.setup(P, q, A, l, u, 'verbose', false, 'polishing', true, ...
     'eps_abs', 1e-8, 'eps_rel', 1e-8, 'linear_solver', 'matlab_ldl');
 solver3.update_settings('max_iter', 80);
 res = solver3.solve();
-ok = (res.info.status_val == -2);
+ok = (res.info.status_val == osqp.constant.OSQP_MAX_ITER_REACHED);
 fprintf('test_max_iter:  status=%d  %s\n', res.info.status_val, pass_fail(ok));
 if ~ok, nfail = nfail + 1; end
 
