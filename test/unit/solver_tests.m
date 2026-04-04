@@ -1,4 +1,4 @@
-classdef solver_tests < matlab.unittest.TestCase
+classdef solver_tests < matlab.unittest.TestCase %#ok<*PROP>
     % SOLVER_TESTS  Tests for the osqp.Solver pure-MATLAB ADMM backend.
 
     properties

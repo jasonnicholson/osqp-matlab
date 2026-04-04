@@ -23,7 +23,7 @@ u = [0; 0; -15; 100; 80];
 l = -1e30 * ones(5, 1);
 n = 2; m = 5;
 
-basic_opts = {'verbose', false, 'polishing', true, 'eps_abs', 1e-8, 'eps_rel', 1e-8, ML{:}};
+basic_opts = [{'verbose', false, 'polishing', true, 'eps_abs', 1e-8, 'eps_rel', 1e-8}, ML];
 
 tests = {'test_basic_QP', 'test_update_q', 'test_update_l', 'test_update_u', 'test_update_bounds'};
 updates = {
@@ -297,7 +297,7 @@ P_new_um = P_triu_new + triu(P_triu_new, 1)' + 5*speye(n_um);
 A_new_vals = randn(nnz(A_um), 1);
 A_new_um = sparse(ai2, aj2, A_new_vals, m_um, n_um);
 
-um_opts = {'verbose', false, 'polishing', true, 'eps_abs', 1e-8, 'eps_rel', 1e-8, ML{:}};
+um_opts = [{'verbose', false, 'polishing', true, 'eps_abs', 1e-8, 'eps_rel', 1e-8}, ML];
 
 % test_solve (original problem)
 try

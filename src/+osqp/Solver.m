@@ -900,20 +900,6 @@ classdef Solver < handle
             scl.c = c; scl.cinv = cinv;
         end
 
-        function [prim_res, dual_res] = computeResiduals(xs, zs, ys, Ps, qs, As, ~, m)
-            if m > 0
-                prim_res = norm(As * xs - zs, inf);
-            else
-                prim_res = 0;
-            end
-            Pfull = Ps + Ps' - diag(diag(Ps));
-            if m > 0
-                dual_res = norm(Pfull * xs + qs + As' * ys, inf);
-            else
-                dual_res = norm(Pfull * xs + qs, inf);
-            end
-        end
-
         function [converged, status_val] = checkConvergence( ...
                 xs, zs, ys, xs_prev, ys_prev, ...
                 Ps, qs, As, ls, us, ~, m, s, approximate)
