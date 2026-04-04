@@ -1,6 +1,16 @@
-[ ] Audit QDLDLC interface. I think the MATLAB code does what is done in the QDLDL C library.
-[ ] Audit function by function and verify correction.
-[ ] Test codegen path ways.
-[ ] Update documentation. Readme.md. docstrings. code comments.
-[ ] Check code compilation files. Make sure everything works.
-[ ] 
+[x] Audit QDLDLC interface. QDLDLCSolver.m confirmed correct — MEX returns strictly lower tri L + Dinv, MATLAB adds speye(n), solve sequence matches QDLDL_solve, permutation handling correct.
+[x] Audit function by function and verify correction. Found 7 issues, fixed 4: adaptive rho interval (time→iteration-count), infinity threshold (1e30→1e26), warm_start preserve iterates, polish Moreau decomposition. 2 design differences documented (scaled termination, duality gap). Bug 5 (cost_scaling) not a bug in scaled_termination mode.
+[x] Test codegen path ways. Fixed workspace file placement bug (missing trailing filesep). Added codegen tests for workspace/configure/emosqp file presence and prefix. 3 codegen tests pass.
+[x] Update documentation. README.md updated: dual backends, project structure, test commands, codegen options, migration notes.
+[x] Check code compilation files. make_osqp.m works (osqp_mex compiles and solves correctly). CMakeLists.txt FetchContent pipeline verified. setupOSQPdevelopmentPath.m fixed to include test/mocks. 114/114 tests pass.
+[x] Run through Solver.m again. Deep C-parity audit: checkConvergence rewritten to branch on scaled_termination (false=default, matching C). Unscaled path uses D/Dinv/E/Einv/c/cinv for all residuals and tolerances. cost_scaling (scl.c) applied in dual infeasibility check. OSQP_INFTY_THRESH derived as OSQP_INFTY*MIN_SCALING (was hardcoded 1e26). Primal inf check uses explicit polar recession cone projection matching C's project_polar_reccone. dualInfCheck receives eps*norm_dx matching C's in_reccone. 114/114 tests, 9/9 examples pass.
+[x] Check for linting issues using MATLAB mcp. All 41 .m files (src, test, utils, integration, mocks) linted — zero issues found.
+[x] Run all examples using script. 9/9 examples pass (adjoint_derivatives, basic_usage, code_generation, easy_lasso_qp, exception_handling, interrupt, osqp_demo, update_matrices, update_vectors).
+[x] Run all tests and integration tests. 114/114 unit tests pass, 6/6 backend smoke tests pass, 26/26 integration unit tests pass. Fixed integration test using stale status code (-2 → osqp.constant.OSQP_MAX_ITER_REACHED).
+[x] Make corresponding documentation updates. Add code comments. README already comprehensive. Added/verified code comments in Solver.m checkConvergence (scaled/unscaled paths), primalInfCheck, dualInfCheck. todo.md updated with completion notes.
+[ ] Solver.m:74 seems like it should use the constant.m's OSQP_INFTY rather than a hardcoded value.
+[ ] Why are there hidden constants in Solver.m when we have a class for storing the OSQP constants in constant.m? Solver.m:68-99
+[ ] Compare Solver.m to OSQP C source again. This time, right an algorithm document in docs/algorithm.md and compare the steps in Solver.m to the steps in the OSQP C source line by line to ensure the MATLAB implementation matches the algorithm exactly except for language differences. This serves to purposes: 1) Memory for comparing the algorithms. 2) Documentation of the OSQP algorithm.
+[ ] Check how the OSQP C source is tested. Consider whether adding similar tests in MATLAB would be useful for testing Solver.m.
+[ ] Add code comments to Solver.m to help document what each section of code is doing.
+
