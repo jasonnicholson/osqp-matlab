@@ -1,5 +1,5 @@
-function result = run_osqp_tests(generateCoverage)
-  % RUN_OSQP_TESTS  Run OSQP MATLAB unit tests with optional HTML coverage report.
+function result = run_osqp_unit_tests(generateCoverage)
+  % RUN_OSQP_UNIT_TESTS  Run OSQP MATLAB unit tests with optional HTML coverage report.
   %
   %   result = run_osqp_tests()          — run all tests, no coverage
   %   result = run_osqp_tests(true)      — run all tests + HTML coverage report
@@ -25,7 +25,7 @@ function result = run_osqp_tests(generateCoverage)
   % Ensure osqp is on the path
   assert(~isempty(which('osqp')), "osqp.m not found on the MATLAB path. Run setupOSQPdevelopmentPath first.");
 
-  unittest_dir = fullfile(osqp_root, 'unittests');
+  unittest_dir = fullfile(osqp_root, 'test', 'unit');
 
   % Build test suite from the unittests folder
   suite = TestSuite.fromFolder(unittest_dir);
@@ -34,6 +34,18 @@ function result = run_osqp_tests(generateCoverage)
 
     % Collect source files to measure coverage on
     sourceFiles = fullfile(srcFolder, "osqp.m");
+
+    % Add +osqp package files
+    pkgFiles = dir(fullfile(srcFolder, '+osqp', '*.m'));
+    for k = 1:numel(pkgFiles)
+      sourceFiles(end+1) = string(fullfile(pkgFiles(k).folder, pkgFiles(k).name)); %#ok<AGROW>
+    end
+
+    % Add +osqp/+linsys package files
+    linsysFiles = dir(fullfile(srcFolder, '+osqp', '+linsys', '*.m'));
+    for k = 1:numel(linsysFiles)
+      sourceFiles(end+1) = string(fullfile(linsysFiles(k).folder, linsysFiles(k).name)); %#ok<AGROW>
+    end
 
     % Add codegen .m files
     codegenFiles = dir(fullfile(srcFolder, 'codegen', '*.m'));

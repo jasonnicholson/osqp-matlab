@@ -29,8 +29,9 @@ fprintf('Iterations: %d\n', results.info.iter);
 fprintf('Solve time: %.4f ms\n', results.info.solve_time * 1000);
 
 % Update settings and re-solve
-solver.update_settings('max_iter', 200, 'verbose', true);
+solver.update_settings('max_iter', 200);
 results2 = solver.solve();
+fprintf('Re-solve iterations: %d\n', results2.info.iter);
 
 % Print version and capabilities
 fprintf('\nOSQP version: %s\n', osqp.version());

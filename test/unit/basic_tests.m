@@ -88,7 +88,7 @@ classdef basic_tests < matlab.unittest.TestCase
             testCase.solver.update_settings('max_iter', 80);
             res = testCase.solver.solve();
             testCase.verifyEqual(res.info.status_val, ...
-                osqp.constant('OSQP_MAX_ITER_REACHED'));
+                osqp.constant.OSQP_MAX_ITER_REACHED);
         end
 
         function test_update_early_termination(testCase)
@@ -110,7 +110,7 @@ classdef basic_tests < matlab.unittest.TestCase
             testCase.solver.update_settings('time_limit', 1e-6);
             res = testCase.solver.solve();
             testCase.verifyEqual(res.info.status_val, ...
-                osqp.constant('OSQP_TIME_LIMIT_REACHED'));
+                osqp.constant.OSQP_TIME_LIMIT_REACHED);
         end
 
         function test_upper_triangular_P(testCase)

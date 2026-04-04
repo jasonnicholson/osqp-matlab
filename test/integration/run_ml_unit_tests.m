@@ -1,5 +1,4 @@
 % run_ml_unit_tests.m — Faithfully replicate the unit tests using matlab_ldl backend
-addpath('src'); addpath('unittests');
 
 fprintf('=============================================================\n');
 fprintf('  OSQP MATLAB Backend (matlab_ldl) Unit Tests\n');
@@ -10,6 +9,9 @@ npass = 0;
 nfail = 0;
 
 ML = {'linear_solver', 'matlab_ldl'};
+
+% Force MATLAB backend via factory function
+newSolver = @() osqp('backend', 'matlab');
 
 %% ===== BASIC TESTS (same problem as basic_tests.m) =====
 fprintf('--- basic_tests ---\n');
@@ -34,7 +36,7 @@ updates = {
 
 for t = 1:numel(tests)
     try
-        solver = osqp; solver.setup(P, q, A, l, u, basic_opts{:});
+        solver = newSolver(); solver.setup(P, q, A, l, u, basic_opts{:});
         if ~isempty(updates{t})
             solver.update(updates{t}{:});
         end
@@ -52,10 +54,10 @@ end
 
 % test_update_max_iter
 try
-    solver = osqp; solver.setup(P, q, A, l, u, basic_opts{:});
+    solver = newSolver(); solver.setup(P, q, A, l, u, basic_opts{:});
     solver.update_settings('max_iter', 80);
     res = solver.solve();
-    assert(res.info.status_val == osqp.constant('OSQP_MAX_ITER_REACHED'));
+    assert(res.info.status_val == osqp.constant.OSQP_MAX_ITER_REACHED);
     fprintf('  test_max_iter: PASS\n'); npass = npass + 1;
 catch e
     fprintf('  test_max_iter: FAIL (%s)\n', e.message); nfail = nfail + 1;
@@ -64,7 +66,7 @@ delete(solver);
 
 % test_early_term
 try
-    solver = osqp; solver.setup(P, q, A, l, u, basic_opts{:});
+    solver = newSolver(); solver.setup(P, q, A, l, u, basic_opts{:});
     solver.update_settings('check_termination', 0, 'max_iter', 500);
     res = solver.solve();
     assert(res.info.iter == 500);
@@ -87,7 +89,7 @@ try
     l_ws = -2 * ones(m_ws, 1);
     u_ws =  2 * ones(m_ws, 1);
 
-    solver = osqp;
+    solver = newSolver();
     solver.setup(P_ws, q_ws, A_ws, l_ws, u_ws, 'verbose', false, ...
         'eps_abs', 1e-8, 'eps_rel', 1e-8, 'warm_starting', true, ML{:});
 
@@ -110,7 +112,7 @@ fprintf('--- polishing_tests ---\n');
 
 % test_polish_simple (same basic problem)
 try
-    solver = osqp;
+    solver = newSolver();
     solver.setup(sparse([11 0; 0 0]), [3; 4], sparse([-1 0; 0 -1; -1 -3; 2 5; 3 4]), ...
         -1e30*ones(5,1), [0; 0; -15; 100; 80], 'verbose', false, 'polishing', true, ...
         'polish_refine_iter', 4, 'eps_abs', 1e-8, 'eps_rel', 1e-8, ML{:});
@@ -137,7 +139,7 @@ try
     u_u = zeros(0, 1);
 
     [x_ref, ~, obj_ref] = load_high_accuracy('test_polish_unconstrained');
-    solver = osqp;
+    solver = newSolver();
     solver.setup(P_u, q_u, A_u, l_u, u_u, 'verbose', false, 'polishing', true, ...
         'polish_refine_iter', 4, 'eps_abs', 1e-8, 'eps_rel', 1e-8, ML{:});
     res = solver.solve();
@@ -161,7 +163,7 @@ try
     u_r =  2 * ones(m_r, 1);
 
     [x_ref, y_ref, obj_ref] = load_high_accuracy('test_polish_random');
-    solver = osqp;
+    solver = newSolver();
     solver.setup(P_r, q_r, A_r, l_r, u_r, 'verbose', false, 'polishing', true, ...
         'polish_refine_iter', 4, 'eps_abs', 1e-8, 'eps_rel', 1e-8, ML{:});
     res = solver.solve();
@@ -188,7 +190,7 @@ try
     uf = bf;
 
     [x_ref, y_ref, ~] = load_high_accuracy('test_feasibility_problem');
-    solver = osqp;
+    solver = newSolver();
     solver.setup(Pf, qf, Af, lf, uf, 'verbose', false, 'polishing', true, ...
         'eps_abs', 1e-8, 'eps_rel', 1e-8, ML{:});
     res = solver.solve();
@@ -213,11 +215,11 @@ try
     u_pi = randn(m_pi, 1);
     l_pi = u_pi + 100;  % makes it infeasible (l > u)
 
-    solver = osqp;
+    solver = newSolver();
     solver.setup(P_pi, q_pi, A_pi, l_pi, u_pi, 'verbose', false, ...
         'eps_prim_inf', 1e-4, ML{:});
     res = solver.solve();
-    assert(res.info.status_val == osqp.constant('OSQP_PRIMAL_INFEASIBLE'));
+    assert(res.info.status_val == osqp.constant.OSQP_PRIMAL_INFEASIBLE);
     fprintf('  test_primal_infeasibility: PASS\n'); npass = npass + 1;
 catch e
     fprintf('  test_primal_infeasibility: FAIL (%s)\n', e.message); nfail = nfail + 1;
@@ -235,11 +237,11 @@ try
     l_di = zeros(n_di, 1);
     u_di = inf * ones(n_di, 1);
 
-    solver = osqp;
+    solver = newSolver();
     solver.setup(P_di, q_di, A_di, l_di, u_di, 'verbose', false, ...
         'eps_dual_inf', 1e-4, ML{:});
     res = solver.solve();
-    assert(res.info.status_val == osqp.constant('OSQP_DUAL_INFEASIBLE'));
+    assert(res.info.status_val == osqp.constant.OSQP_DUAL_INFEASIBLE);
     fprintf('  test_dual_infeasibility: PASS\n'); npass = npass + 1;
 catch e
     fprintf('  test_dual_infeasibility: FAIL (%s)\n', e.message); nfail = nfail + 1;
@@ -259,7 +261,7 @@ try
     l_uc = zeros(0, 1);
     u_uc = zeros(0, 1);
 
-    solver = osqp;
+    solver = newSolver();
     solver.setup(P_uc, q_uc, A_uc, l_uc, u_uc, 'verbose', false, ...
         'eps_abs', 1e-8, 'eps_rel', 1e-8, ML{:});
     res = solver.solve();
@@ -299,7 +301,7 @@ um_opts = {'verbose', false, 'polishing', true, 'eps_abs', 1e-8, 'eps_rel', 1e-8
 
 % test_solve (original problem)
 try
-    solver = osqp; solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
+    solver = newSolver(); solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
     [x_ref, y_ref, obj_ref] = load_high_accuracy('test_solve');
     res = solver.solve();
     assert(max(abs(res.x - x_ref)) < tol);
@@ -313,7 +315,7 @@ delete(solver);
 
 % test_update_P
 try
-    solver = osqp; solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
+    solver = newSolver(); solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
     P_up = triu(P_new_um);
     Px = nonzeros(P_up);
     solver.update('Px', Px);
@@ -330,7 +332,7 @@ delete(solver);
 
 % test_update_P_allind
 try
-    solver = osqp; solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
+    solver = newSolver(); solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
     P_up = triu(P_new_um);
     [~, ~, Px] = find(P_up);
     Px_idx = (1:length(Px))';
@@ -348,7 +350,7 @@ delete(solver);
 
 % test_update_A
 try
-    solver = osqp; solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
+    solver = newSolver(); solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
     Ax = nonzeros(A_new_um);
     solver.update('Ax', Ax);
     [x_ref, y_ref, obj_ref] = load_high_accuracy('test_update_A');
@@ -364,7 +366,7 @@ delete(solver);
 
 % test_update_A_allind
 try
-    solver = osqp; solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
+    solver = newSolver(); solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
     [~, ~, Ax] = find(A_new_um);
     Ax_idx = (1:length(Ax))';
     solver.update('Ax', Ax, 'Ax_idx', Ax_idx);
@@ -381,7 +383,7 @@ delete(solver);
 
 % test_update_P_A_allind
 try
-    solver = osqp; solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
+    solver = newSolver(); solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
     Px = nonzeros(triu(P_new_um));
     Ax = nonzeros(A_new_um);
     solver.update('Px', Px, 'Ax', Ax);
@@ -398,7 +400,7 @@ delete(solver);
 
 % test_update_P_A_indP
 try
-    solver = osqp; solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
+    solver = newSolver(); solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
     P_up = triu(P_new_um);
     Px = nonzeros(P_up);
     Px_idx = (1:length(Px))';
@@ -417,7 +419,7 @@ delete(solver);
 
 % test_update_P_A_indA
 try
-    solver = osqp; solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
+    solver = newSolver(); solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
     Px = nonzeros(triu(P_new_um));
     [~, ~, Ax] = find(A_new_um);
     Ax_idx = (1:length(Ax))';
@@ -435,7 +437,7 @@ delete(solver);
 
 % test_update_P_A_indP_indA
 try
-    solver = osqp; solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
+    solver = newSolver(); solver.setup(P_um, q_um, A_um, l_um, u_um, um_opts{:});
     P_up = triu(P_new_um);
     Px = nonzeros(P_up);
     [~, ~, Ax] = find(A_new_um);
@@ -462,11 +464,11 @@ try
     A_lp = sparse([1 0; 0 1; 1 1]);
     l_lp = [0; 0; -inf];
     u_lp = [inf; inf; 1];
-    solver = osqp;
+    solver = newSolver();
     solver.setup(P_lp, q_lp, A_lp, l_lp, u_lp, 'verbose', false, ML{:});
     res = solver.solve();
-    assert(res.info.status_val == osqp.constant('OSQP_SOLVED') || ...
-           res.info.status_val == osqp.constant('OSQP_SOLVED_INACCURATE'));
+    assert(res.info.status_val == osqp.constant.OSQP_SOLVED || ...
+           res.info.status_val == osqp.constant.OSQP_SOLVED_INACCURATE);
     fprintf('  test_lp: PASS\n'); npass = npass + 1;
 catch e
     fprintf('  test_lp: FAIL (%s)\n', e.message); nfail = nfail + 1;
@@ -477,7 +479,7 @@ delete(solver);
 fprintf('--- cold_start_tests ---\n');
 
 try
-    solver = osqp;
+    solver = newSolver();
     solver.setup(sparse([11 0; 0 0]), [3; 4], sparse([-1 0; 0 -1; -1 -3; 2 5; 3 4]), ...
         -1e30*ones(5,1), [0; 0; -15; 100; 80], 'verbose', false, ...
         'eps_abs', 1e-8, 'eps_rel', 1e-8, ML{:});

@@ -1,5 +1,4 @@
 % run_ml_backend_tests.m — Quick smoke tests for the matlab_ldl backend
-addpath('src'); addpath('unittests');
 
 P = sparse([11 0; 0 0]);
 q = [3; 4];
@@ -10,7 +9,7 @@ tol = 1e-4;
 nfail = 0;
 
 %% test_basic_qp
-solver = osqp;
+solver = osqp(backend='matlab');
 solver.setup(P, q, A, l, u, 'verbose', false, 'polishing', true, ...
     'eps_abs', 1e-8, 'eps_rel', 1e-8, 'linear_solver', 'matlab_ldl');
 [x_ref, y_ref, obj_ref] = load_high_accuracy('test_basic_QP');
@@ -34,7 +33,7 @@ fprintf('test_update_q:  x_err=%.2e  y_err=%.2e  obj_err=%.2e  %s\n', ...
 if xerr >= tol || yerr >= tol || oerr >= tol, nfail = nfail + 1; end
 
 %% test_update_l
-solver2 = osqp;
+solver2 = osqp(backend='matlab');
 solver2.setup(P, q, A, l, u, 'verbose', false, 'polishing', true, ...
     'eps_abs', 1e-8, 'eps_rel', 1e-8, 'linear_solver', 'matlab_ldl');
 solver2.update('l', -50 * ones(5, 1));
@@ -48,7 +47,7 @@ fprintf('test_update_l:  x_err=%.2e  y_err=%.2e  obj_err=%.2e  %s\n', ...
 if xerr >= tol || yerr >= tol || oerr >= tol, nfail = nfail + 1; end
 
 %% test_update_max_iter
-solver3 = osqp;
+solver3 = osqp(backend='matlab');
 solver3.setup(P, q, A, l, u, 'verbose', false, 'polishing', true, ...
     'eps_abs', 1e-8, 'eps_rel', 1e-8, 'linear_solver', 'matlab_ldl');
 solver3.update_settings('max_iter', 80);
@@ -58,7 +57,7 @@ fprintf('test_max_iter:  status=%d  %s\n', res.info.status_val, pass_fail(ok));
 if ~ok, nfail = nfail + 1; end
 
 %% test_early_termination
-solver4 = osqp;
+solver4 = osqp(backend='matlab');
 solver4.setup(P, q, A, l, u, 'verbose', false, 'polishing', true, ...
     'eps_abs', 1e-8, 'eps_rel', 1e-8, 'linear_solver', 'matlab_ldl');
 solver4.update_settings('check_termination', 0, 'max_iter', 500);
@@ -68,7 +67,7 @@ fprintf('test_early_term: iter=%d  %s\n', res.info.iter, pass_fail(ok));
 if ~ok, nfail = nfail + 1; end
 
 %% test_warm_start
-solver5 = osqp;
+solver5 = osqp(backend='matlab');
 solver5.setup(P, q, A, l, u, 'verbose', false, 'eps_abs', 1e-8, ...
     'eps_rel', 1e-8, 'linear_solver', 'matlab_ldl');
 solver5.warm_start('x', zeros(2, 1), 'y', zeros(5, 1));

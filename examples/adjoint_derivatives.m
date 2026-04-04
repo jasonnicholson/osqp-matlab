@@ -4,9 +4,10 @@
 % problem data using adjoint differentiation.
 
 % Check if derivatives are supported
-if ~bitand(uint32(osqp.capabilities()), ...
-        uint32(osqp.constant('OSQP_CAPABILITY_DERIVATIVES')))
+solver = osqp;
+if ~solver.has_capability('OSQP_CAPABILITY_DERIVATIVES')
     fprintf('Derivatives are not available in this build.\n');
+    delete(solver);
     return;
 end
 

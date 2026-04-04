@@ -37,7 +37,7 @@ classdef primal_infeasibility_tests < matlab.unittest.TestCase
             res = solver.solve();
 
             testCase.verifyEqual(res.info.status_val, ...
-                osqp.constant('OSQP_PRIMAL_INFEASIBLE'));
+                osqp.constant.OSQP_PRIMAL_INFEASIBLE);
 
             delete(solver);
         end
