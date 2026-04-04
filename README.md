@@ -60,12 +60,22 @@ A = sparse([1 1; 1 0; 0 1]);
 l = [1; 0; 0];
 u = [1; 0.7; 0.7];
 
-solver = osqp;
+solver = osqp;                                  % C backend (default)
 solver.setup(P, q, A, l, u, 'verbose', false);
 res = solver.solve();
 
 fprintf('x = [%.4f, %.4f]\n', res.x(1), res.x(2));
 delete(solver);
+```
+
+### Pure-MATLAB Backend
+
+A pure-MATLAB ADMM solver is available for environments without a C compiler:
+
+```matlab
+solver = osqp(backend="matlab");
+solver.setup(P, q, A, l, u, 'verbose', false);
+res = solver.solve();
 ```
 
 ## API Reference
@@ -96,7 +106,7 @@ delete(solver);
 |--------|-------------|
 | `codegen(dir, varargin)` | Generate embeddable C code for the current problem |
 
-Code generation options: `'parameters'` (`'vectors'`, `'matrices'`, or `'none'`), `'force'` (overwrite), `'float'` (use single precision), `'printing'` (enable printing), `'profiling'` (enable profiling), `'interrupt'` (enable interrupt), `'derivatives'` (enable derivatives).
+Code generation options: `'parameters'` (`'vectors'` or `'matrices'`), `'force_rewrite'` (overwrite), `'float_type'` (use single precision), `'printing_enable'` (enable printing), `'profiling_enable'` (enable profiling), `'interrupt_enable'` (enable interrupt), `'derivatives_enable'` (enable derivatives), `'prefix'` (symbol prefix).
 
 ### Adjoint Derivatives
 
@@ -106,7 +116,7 @@ Code generation options: `'parameters'` (`'vectors'`, `'matrices'`, or `'none'`)
 | `adjoint_derivative_get_mat()` | Get derivative matrices `[dP, dA]` |
 | `adjoint_derivative_get_vec()` | Get derivative vectors `[dq, dl, du]` |
 
-### Utility (Static Methods)
+### Utility
 
 | Method | Description |
 |--------|-------------|
@@ -114,7 +124,19 @@ Code generation options: `'parameters'` (`'vectors'`, `'matrices'`, or `'none'`)
 | `osqp.constant(name)` | Query an OSQP constant |
 | `osqp.capabilities()` | Capability bitmask |
 | `has_capability(cap)` | Check for a specific capability constant |
-| `get_dimensions()` | Returns `[m, n]` |
+| `get_dimensions()` | Returns `[n, m]` |
+
+## Backends
+
+| Feature | C (`osqp()`) | MATLAB (`osqp(backend="matlab")`) |
+|---------|:---:|:---:|
+| `setup` / `solve` / `update` | Yes | Yes |
+| `warm_start` / `cold_start` | Yes | Yes |
+| `update_settings` | Yes | Yes |
+| `codegen` | Yes | No |
+| `adjoint_derivative_*` | Yes | No |
+| Linear solvers | QDLDL (C) | MATLAB LDL / QDLDL (MATLAB) |
+| Requires MEX compilation | Yes | No |
 
 ## Key Settings
 
@@ -138,16 +160,16 @@ Code generation options: `'parameters'` (`'vectors'`, `'matrices'`, or `'none'`)
 ## Running Tests
 
 ```matlab
-setupOSQPdevelopmentPath   % if not already done
-run_osqp_tests             % run all 37 unit tests
-run_osqp_tests(true)       % run tests with HTML coverage report
+setupOSQPdevelopmentPath          % if not already done
+run_osqp_unit_tests               % run all unit tests
+run_osqp_unit_tests(true)         % run tests with HTML coverage report
 ```
 
 ## Running Examples
 
 ```matlab
-setupOSQPdevelopmentPath   % if not already done
-run_osqp_examples          % run all example scripts
+setupOSQPdevelopmentPath          % if not already done
+run_osqp_examples                 % run all example scripts
 ```
 
 ## Project Structure
@@ -155,21 +177,42 @@ run_osqp_examples          % run all example scripts
 ```
 osqp-matlab/
 ├── setupOSQPdevelopmentPath.m   % adds src/ and utils/ to the MATLAB path
-├── src/                         % packaged source files
-│   ├── osqp.m                   % main OSQP class
-│   ├── make_osqp.m              % build script
-│   ├── osqp_mex.cpp/.hpp        % MEX gateway
+├── src/
+│   ├── osqp.m                   % factory function (selects backend)
+│   ├── make_osqp.m              % build script for MEX interface
+│   ├── osqp_mex.cpp/.hpp        % MEX gateway (C ↔ MATLAB bridge)
+│   ├── MATLABLDLSolver.m        % LDL factorization for pure-MATLAB backend
 │   ├── CMakeLists.txt           % CMake build configuration
-│   └── codegen/                 % code generation support
-├── examples/                    % example scripts
-├── unittests/                   % unit test suite
-└── utils/                       % development utilities
+│   ├── +osqp/                   % OSQP package namespace
+│   │   ├── CInterface.m         % C MEX backend (wraps osqp_mex)
+│   │   ├── Solver.m             % Pure-MATLAB ADMM solver
+│   │   ├── Options.m            % Unified settings management
+│   │   ├── LinearSolver.m       % Abstract linear solver interface
+│   │   ├── capabilities.m       % Capability query
+│   │   ├── constant.m           % Status/capability constants
+│   │   ├── default_settings.m   % Default settings structure
+│   │   ├── version.m            % Version string
+│   │   └── +linsys/             % Linear solver implementations
+│   │       ├── MatlabLDLSolver.m    % MATLAB LDL backend
+│   │       ├── QDLDLSolver.m        % QDLDL (MATLAB) backend
+│   │       └── QDLDLCSolver.m       % QDLDL (C MEX) backend
+│   └── codegen/                 % Code generation support
+├── examples/                    % Example scripts
+├── test/
+│   ├── unit/                    % Unit test suite (matlab.unittest)
+│   ├── integration/             % Integration tests (script-based)
+│   └── mocks/                   % Test doubles
+├── utils/                       % Development utilities
+└── build/                       % CMake build output (auto-generated)
 ```
 
 ## Migration from v0.6.x
 
 Key breaking changes from OSQP ≤ 0.6.x:
 
+- **Factory function**: `osqp` is now a function that returns a backend object (`osqp.CInterface` or `osqp.Solver`), not a class
+- **Dual backends**: Use `osqp()` for C backend (default), `osqp(backend="matlab")` for pure-MATLAB
+- **Package namespace**: All source files live under the `+osqp` package (`osqp.Solver`, `osqp.Options`, etc.)
 - **Settings renamed**: `warm_start` → `warm_starting`, `polish` → `polishing`
 - **Linear system solvers**: `'qdldl'` → `'direct'`, `'mkl pardiso'` → `'direct'` (select backend at build time)
 - **Code generation**: Uses native `osqp_codegen()` instead of template rendering

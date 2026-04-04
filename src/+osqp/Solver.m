@@ -68,6 +68,13 @@ classdef Solver < handle
     properties (Constant, Hidden = true)
         OSQP_INFTY = 1e30
 
+        % Threshold for treating bounds as infinite (matches C:
+        % OSQP_INFTY * MIN_SCALING = 1e30 * 1e-4 = 1e26)
+        OSQP_INFTY_THRESH = 1e26
+
+        % Adaptive rho: C v1.0 uses iteration-count-based interval
+        ADAPTIVE_RHO_MULTIPLE_TERMINATION = 4
+
         % Rho management constants (matching C code)
         RHO_MIN              = 1e-6
         RHO_MAX              = 1e6
@@ -308,18 +315,10 @@ classdef Solver < handle
                 % Adaptive rho
                 if s.adaptive_rho
                     if adaptive_rho_interval == 0
-                        if iter == 1
-                            t_iter_start = tic;
-                        elseif iter == 2
-                            t_one_iter = toc(t_iter_start);
-                            t_setup_val = max(obj.setup_time, 1e-10);
-                            if t_one_iter > 0
-                                adaptive_rho_interval = max(1, ...
-                                    round(s.adaptive_rho_fraction * t_setup_val / t_one_iter));
-                            else
-                                adaptive_rho_interval = 25;
-                            end
-                        end
+                        % v1.0: iteration-count-based interval
+                        adaptive_rho_interval = ...
+                            osqp.Solver.ADAPTIVE_RHO_MULTIPLE_TERMINATION * ...
+                            max(s.check_termination, 1);
                     end
                     if adaptive_rho_interval > 0 && mod(iter, adaptive_rho_interval) == 0
                         new_rho = osqp.Solver.computeNewRho( ...
@@ -603,22 +602,12 @@ classdef Solver < handle
             assert(isempty(x) || length(x) == n, 'input ''x'' is the wrong size');
             assert(isempty(y) || length(y) == m, 'input ''y'' is the wrong size');
 
-            x_updated = false;
-            y_updated = false;
             if ~isempty(x)
                 obj.x_ = x;
                 obj.z_ = obj.A_ * x;
-                x_updated = true;
             end
             if ~isempty(y)
                 obj.y_ = y;
-                y_updated = true;
-            end
-            if x_updated && ~y_updated
-                obj.y_ = zeros(m, 1);
-            elseif ~x_updated && y_updated
-                obj.x_ = zeros(n, 1);
-                obj.z_ = zeros(m, 1);
             end
         end
 
@@ -1013,24 +1002,24 @@ classdef Solver < handle
         end
 
         function ok = primalInfCheck(v, l, u, eps)
-            INF = osqp.Solver.OSQP_INFTY;
+            INF_THRESH = osqp.Solver.OSQP_INFTY_THRESH;
             vpos = max(v, 0);
             vneg = min(v, 0);
             val  = 0;
             for i = 1:numel(l)
-                if abs(u(i)) < INF, val = val + u(i) * vpos(i); end
-                if abs(l(i)) < INF, val = val + l(i) * vneg(i); end
+                if abs(u(i)) < INF_THRESH, val = val + u(i) * vpos(i); end
+                if abs(l(i)) < INF_THRESH, val = val + l(i) * vneg(i); end
             end
             ok = val < -eps;
         end
 
         function ok = dualInfCheck(Adx, l, u, eps)
-            INF = osqp.Solver.OSQP_INFTY;
+            INF_THRESH = osqp.Solver.OSQP_INFTY_THRESH;
             ok = true;
             for i = 1:numel(l)
                 li = l(i); ui = u(i);
-                li_fin = abs(li) < INF;
-                ui_fin = abs(ui) < INF;
+                li_fin = abs(li) < INF_THRESH;
+                ui_fin = abs(ui) < INF_THRESH;
                 ai = Adx(i);
                 if li_fin && ui_fin
                     if abs(ai) > eps, ok = false; return; end
@@ -1169,11 +1158,18 @@ classdef Solver < handle
                 y_pol(active_idx) = y_act;
 
                 Ax_pol = A * x_pol;
-                feas_l = all(Ax_pol >= l - tol_act | abs(l) >= INF);
-                feas_u = all(Ax_pol <= u + tol_act | abs(u) >= INF);
+
+                % Normal cone projection (Moreau decomposition)
+                % Ensures z in C and y in N_C(z)
+                y_pol = y_pol + Ax_pol;
+                z_pol = min(max(y_pol, l), u);
+                y_pol = y_pol - z_pol;
+
+                feas_l = all(z_pol >= l - tol_act | abs(l) >= INF);
+                feas_u = all(z_pol <= u + tol_act | abs(u) >= INF);
                 if feas_l && feas_u
                     obj_pol = 0.5 * x_pol' * Pfull * x_pol + q' * x_pol;
-                    pri_res_pol = norm(Ax_pol - min(max(Ax_pol, l), u), inf);
+                    pri_res_pol = norm(Ax_pol - z_pol, inf);
                     dua_res_pol = norm(Pfull * x_pol + q + A' * y_pol, inf);
                     pri_res_cur = results.info.pri_res;
                     dua_res_cur = results.info.dua_res;

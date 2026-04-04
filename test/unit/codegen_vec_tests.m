@@ -51,6 +51,14 @@ classdef codegen_vec_tests < matlab.unittest.TestCase
                 'inc', 'public', 'osqp.h'), 'file') > 0);
             testCase.verifyTrue(exist(fullfile(testCase.codegen_dir, ...
                 'src', 'osqp_api.c'), 'file') > 0);
+
+            % Verify workspace/configure files land in target dir
+            ws = dir(fullfile(testCase.codegen_dir, '*workspace*'));
+            testCase.verifyGreaterThan(numel(ws), 0, ...
+                'Workspace files missing from codegen output');
+            cf = dir(fullfile(testCase.codegen_dir, '*configure*'));
+            testCase.verifyGreaterThan(numel(cf), 0, ...
+                'Configure file missing from codegen output');
         end
     end
 end

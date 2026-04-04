@@ -51,6 +51,36 @@ classdef codegen_mat_tests < matlab.unittest.TestCase
                 'inc', 'public', 'osqp.h'), 'file') > 0);
             testCase.verifyTrue(exist(fullfile(testCase.codegen_dir, ...
                 'src', 'osqp_api.c'), 'file') > 0);
+
+            % Verify workspace/configure/emosqp files land in target dir
+            ws = dir(fullfile(testCase.codegen_dir, '*workspace*'));
+            testCase.verifyGreaterThan(numel(ws), 0, ...
+                'Workspace files missing from codegen output');
+            cf = dir(fullfile(testCase.codegen_dir, '*configure*'));
+            testCase.verifyGreaterThan(numel(cf), 0, ...
+                'Configure file missing from codegen output');
+            em = dir(fullfile(testCase.codegen_dir, '*emosqp*'));
+            testCase.verifyGreaterThan(numel(em), 0, ...
+                'Emosqp file missing from codegen output');
+        end
+
+        function test_codegen_mat_with_prefix(testCase)
+            testCase.solver.codegen(testCase.codegen_dir, ...
+                'parameters', 'matrices', 'force_rewrite', true, ...
+                'prefix', 'myqp_');
+
+            % Verify prefixed workspace files exist inside target dir
+            ws = dir(fullfile(testCase.codegen_dir, 'myqp_*'));
+            testCase.verifyGreaterThan(numel(ws), 0, ...
+                'Prefixed files missing from codegen output');
+
+            % Verify no stray files outside target dir
+            parent = fileparts(testCase.codegen_dir);
+            dname = regexp(testCase.codegen_dir, '[^/\\]+$', 'match', 'once');
+            stray = dir(fullfile(parent, [dname '*']));
+            stray = stray(~ismember({stray.name}, {dname}));
+            testCase.verifyEmpty(stray, ...
+                'Stray codegen files found outside target directory');
         end
     end
 end

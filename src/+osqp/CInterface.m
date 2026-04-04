@@ -282,8 +282,15 @@ classdef CInterface < handle
             defines.interrupt_enable   = p.Results.interrupt_enable;
             defines.derivatives_enable = p.Results.derivatives_enable;
 
+            % Ensure trailing filesep so C osqp_codegen() places files
+            % inside target_dir (it concatenates dir + prefix + name).
+            codegen_dir = target_dir;
+            if codegen_dir(end) ~= filesep
+                codegen_dir(end+1) = filesep;
+            end
+
             osqp_mex('codegen', obj.objectHandle, ...
-                target_dir, p.Results.prefix, defines);
+                codegen_dir, p.Results.prefix, defines);
 
             % Copy source files
             [osqp_path, ~, ~] = fileparts(which('osqp.m'));
