@@ -39,7 +39,6 @@ classdef constant
         OSQP_RHO_TOL                      = 1e-4
         OSQP_MIN_SCALING                  = 1e-4
         OSQP_MAX_SCALING                  = 1e4
-        OSQP_DIVISION_TOL                 = 1e-10
         OSQP_ADAPTIVE_RHO_MULTIPLE_TERMINATION = 4
     end
 

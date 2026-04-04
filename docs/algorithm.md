@@ -31,7 +31,7 @@ where $P \in \mathbb{S}^n_+$ (positive semidefinite), $q \in \mathbb{R}^n$, $A \
 | `OSQP_RHO_EQ_OVER_RHO_INEQ` | $10^{3}$ | `osqp_api_constants.h:113` | `osqp.constant.OSQP_RHO_EQ_OVER_RHO_INEQ` |
 | `OSQP_ADAPTIVE_RHO_MULTIPLE_TERMINATION` | $4$ | `osqp_api_constants.h:122` | `osqp.constant.OSQP_ADAPTIVE_RHO_MULTIPLE_TERMINATION` |
 
-**Note**: `OSQP_DIVISION_TOL` is defined as `1/OSQP_INFTY` in C (`1e-30`). In MATLAB `constant.m` it is stored as `1e-10` — a slightly larger but equally safe guard against division by zero. This does not affect convergence behavior.
+**Note**: `OSQP_DIVISION_TOL` is defined as `1/OSQP_INFTY` in C (`1e-30`). MATLAB `constant.m` now stores `1e-30` to match. `OSQP_INFTY_THRESH` is a derived constant (`OSQP_INFTY * OSQP_MIN_SCALING`); `Solver.m` computes both derived values once during `setup()` and caches them in a private property `C_` so they are not recalculated during the ADMM iteration loop.
 
 ---
 
@@ -43,7 +43,7 @@ where $P \in \mathbb{S}^n_+$ (positive semidefinite), $q \in \mathbb{R}^n$, $A \
 |---|---|---|
 | Bound clamping | `l` and `u` clamped to $[-\text{INFTY}, +\text{INFTY}]$ during scaling | `l = max(l, -OSQP_INFTY)`, `u = min(u, OSQP_INFTY)` |
 | P storage | Upper triangular CSC matrix | `triu(sparse(P))` |
-| Convexity check | Checked via linear system solver | Cholesky-based check; sets `non_convex` flag |
+| Convexity check | Checked via KKT LDL factorization inertia (QDLDL counts positive D entries = n) | LDL-based inertia check: `chol(P+σI)` for PD, then `ldl(P)` for PSD detection; sets `non_convex` flag |
 
 ### 3.2. Ruiz Equilibration (Scaling)
 
