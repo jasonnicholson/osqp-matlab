@@ -9,17 +9,27 @@ classdef constant
     %     val = osqp.constant('OSQP_SOLVED')
 
     properties (Constant)
-        OSQP_INFTY                       = 1e30
-        OSQP_SOLVED                      = 1
-        OSQP_SOLVED_INACCURATE           = 2
-        OSQP_PRIMAL_INFEASIBLE           = -3
-        OSQP_PRIMAL_INFEASIBLE_INACCURATE = 3
-        OSQP_DUAL_INFEASIBLE             = -4
-        OSQP_DUAL_INFEASIBLE_INACCURATE  = 4
-        OSQP_MAX_ITER_REACHED            = -2
-        OSQP_TIME_LIMIT_REACHED          = -6
-        OSQP_NON_CONVEX                  = -7
-        OSQP_UNSOLVED                    = -10
+        OSQP_INFTY                        = 1e30
+
+        % Solver status (matches osqp_api_constants.h enum, v1.0.0)
+        OSQP_SOLVED                       = 1
+        OSQP_SOLVED_INACCURATE            = 2
+        OSQP_PRIMAL_INFEASIBLE            = 3
+        OSQP_PRIMAL_INFEASIBLE_INACCURATE = 4
+        OSQP_DUAL_INFEASIBLE              = 5
+        OSQP_DUAL_INFEASIBLE_INACCURATE   = 6
+        OSQP_MAX_ITER_REACHED             = 7
+        OSQP_TIME_LIMIT_REACHED           = 8
+        OSQP_NON_CONVEX                   = 9
+        OSQP_SIGINT                       = 10
+        OSQP_UNSOLVED                     = 11
+
+        % Polish status
+        OSQP_POLISH_LINSYS_ERROR          = -2
+        OSQP_POLISH_FAILED                = -1
+        OSQP_POLISH_NOT_PERFORMED         = 0
+        OSQP_POLISH_SUCCESS               = 1
+        OSQP_POLISH_NO_ACTIVE_SET_FOUND   = 2
     end
 
     methods (Static)

@@ -77,16 +77,17 @@ classdef Solver < handle
         MAX_SCALING          = 1e4
         DIVISION_TOL         = 1e-10
 
-        STATUS_DUAL_INFEASIBLE_INACCURATE  = 4
-        STATUS_PRIMAL_INFEASIBLE_INACCURATE = 3
-        STATUS_SOLVED_INACCURATE            = 2
         STATUS_SOLVED                       = 1
-        STATUS_MAX_ITER_REACHED             = -2
-        STATUS_PRIMAL_INFEASIBLE            = -3
-        STATUS_DUAL_INFEASIBLE              = -4
-        STATUS_TIME_LIMIT_REACHED           = -6
-        STATUS_NON_CONVEX                   = -7
-        STATUS_UNSOLVED                     = -10
+        STATUS_SOLVED_INACCURATE            = 2
+        STATUS_PRIMAL_INFEASIBLE            = 3
+        STATUS_PRIMAL_INFEASIBLE_INACCURATE = 4
+        STATUS_DUAL_INFEASIBLE              = 5
+        STATUS_DUAL_INFEASIBLE_INACCURATE   = 6
+        STATUS_MAX_ITER_REACHED             = 7
+        STATUS_TIME_LIMIT_REACHED           = 8
+        STATUS_NON_CONVEX                   = 9
+        STATUS_SIGINT                       = 10
+        STATUS_UNSOLVED                     = 11
     end
 
     % =====================================================================
@@ -729,15 +730,17 @@ classdef Solver < handle
 
         function str = statusStr(val)
             switch val
-                case  4,  str = 'dual_infeasible_inaccurate';
-                case  3,  str = 'primal_infeasible_inaccurate';
-                case  2,  str = 'solved_inaccurate';
                 case  1,  str = 'solved';
-                case -2,  str = 'maximum_iterations_reached';
-                case -3,  str = 'primal_infeasible';
-                case -4,  str = 'dual_infeasible';
-                case -6,  str = 'time_limit_reached';
-                case -7,  str = 'non_convex';
+                case  2,  str = 'solved_inaccurate';
+                case  3,  str = 'primal_infeasible';
+                case  4,  str = 'primal_infeasible_inaccurate';
+                case  5,  str = 'dual_infeasible';
+                case  6,  str = 'dual_infeasible_inaccurate';
+                case  7,  str = 'maximum_iterations_reached';
+                case  8,  str = 'time_limit_reached';
+                case  9,  str = 'non_convex';
+                case 10,  str = 'interrupted';
+                case 11,  str = 'unsolved';
                 otherwise, str = 'unsolved';
             end
         end
