@@ -62,42 +62,6 @@ classdef Solver < handle
         polish_time = 0
     end
 
-    % -----------------------------------------------------------------
-    %  Status constants
-    % -----------------------------------------------------------------
-    properties (Constant, Hidden = true)
-        OSQP_INFTY = 1e30
-
-        % Threshold for treating bounds as infinite (matches C:
-        % OSQP_INFTY * MIN_SCALING).  Derived so it auto-adjusts
-        % if either constant changes.
-        OSQP_INFTY_THRESH = 1e30 * 1e-4   % = OSQP_INFTY * MIN_SCALING
-
-        % Adaptive rho: C v1.0 uses iteration-count-based interval
-        ADAPTIVE_RHO_MULTIPLE_TERMINATION = 4
-
-        % Rho management constants (matching C code)
-        RHO_MIN              = 1e-6
-        RHO_MAX              = 1e6
-        RHO_EQ_OVER_RHO_INEQ = 1e3
-        RHO_TOL              = 1e-4
-        MIN_SCALING          = 1e-4
-        MAX_SCALING          = 1e4
-        DIVISION_TOL         = 1e-10
-
-        STATUS_SOLVED                       = 1
-        STATUS_SOLVED_INACCURATE            = 2
-        STATUS_PRIMAL_INFEASIBLE            = 3
-        STATUS_PRIMAL_INFEASIBLE_INACCURATE = 4
-        STATUS_DUAL_INFEASIBLE              = 5
-        STATUS_DUAL_INFEASIBLE_INACCURATE   = 6
-        STATUS_MAX_ITER_REACHED             = 7
-        STATUS_TIME_LIMIT_REACHED           = 8
-        STATUS_NON_CONVEX                   = 9
-        STATUS_SIGINT                       = 10
-        STATUS_UNSOLVED                     = 11
-    end
-
     % =====================================================================
     %  Public API
     % =====================================================================
@@ -161,8 +125,8 @@ classdef Solver < handle
             obj.P_triu = P;
             obj.q_ = q;
             obj.A_ = sparse(A);
-            obj.l_ = max(l, -osqp.Solver.OSQP_INFTY);
-            obj.u_ = min(u,  osqp.Solver.OSQP_INFTY);
+            obj.l_ = max(l, -osqp.constant.OSQP_INFTY);
+            obj.u_ = min(u,  osqp.constant.OSQP_INFTY);
 
             % --- Convexity check ---
             Pfull = obj.P_triu + obj.P_triu' - diag(diag(obj.P_triu));
@@ -221,7 +185,7 @@ classdef Solver < handle
 
             % Non-convex check
             if obj.non_convex
-                results.info.status_val = osqp.Solver.STATUS_NON_CONVEX;
+                results.info.status_val = osqp.constant.OSQP_NON_CONVEX;
                 results.info.status     = 'non_convex';
                 results.info.obj_val    = nan;
                 return;
@@ -240,7 +204,7 @@ classdef Solver < handle
                 ys = zeros(m, 1);
             end
 
-            status_val = osqp.Solver.STATUS_UNSOLVED;
+            status_val = osqp.constant.OSQP_UNSOLVED;
             rho_updates = 0;
             adaptive_rho_interval = 0;
 
@@ -250,12 +214,18 @@ classdef Solver < handle
 
             iter = 0; %#ok<NASGU> default for max_iter=0
 
+            % ============================================================
+            % ADMM iteration loop (C: osqp_solve main loop)
+            % ============================================================
             for iter = 1:s.max_iter
                 xs_prev = xs;
                 zs_prev = zs;
                 ys_prev = ys;
 
-                % Step 1: Solve KKT for x_tilde, z_tilde
+                % Step 1: KKT solve for (x_tilde, z_tilde)
+                %   Solves [P+sigma*I  A'; A  -diag(1/rho)] * [xt; nut]
+                %        = [sigma*x_prev - q; z_prev - rho_inv.*y]
+                %   C: compute_rhs() + linsys_solver->solve()
                 rhs_x = s.sigma * xs_prev - obj.qs;
                 if m > 0
                     rhs_z = zs_prev - obj.rho_inv_vec .* ys;
@@ -267,13 +237,17 @@ classdef Solver < handle
                 sol = obj.kkt_factor \ rhs;
                 xtilde = sol(1:n);
 
+                % C: update_xz_tilde() — recover z_tilde from KKT auxiliary
                 if m > 0
                     ztilde = zs_prev + obj.rho_inv_vec .* (sol(n+1:end) - ys);
                 else
                     ztilde = zeros(0, 1);
                 end
 
-                % Step 2: Relaxation + projection
+                % Step 2: Over-relaxation + projection onto [l, u]
+                %   x = alpha * xtilde + (1-alpha) * x_prev
+                %   z = clip(alpha*ztilde + (1-alpha)*z_prev + rho_inv.*y, l, u)
+                %   C: update_x() + update_z()
                 xs = s.alpha * xtilde + (1 - s.alpha) * xs_prev;
                 if m > 0
                     zs_relaxed = s.alpha * ztilde + (1 - s.alpha) * zs_prev;
@@ -281,13 +255,15 @@ classdef Solver < handle
                         obj.ls), obj.us);
                 end
 
-                % Step 3: Dual update
+                % Step 3: Dual variable update
+                %   y = y + rho .* (alpha*ztilde + (1-alpha)*z_prev - z)
+                %   C: update_y()
                 if m > 0
                     ys = ys + obj.rho_vec .* ( ...
                         s.alpha * ztilde + (1 - s.alpha) * zs_prev - zs);
                 end
 
-                % Convergence check
+                % Periodic convergence check (C: check_termination)
                 if s.check_termination > 0 && mod(iter, s.check_termination) == 0
                     [converged, status_val] = osqp.Solver.checkConvergence( ...
                         xs, zs, ys, xs_prev, ys_prev, ...
@@ -298,9 +274,9 @@ classdef Solver < handle
                     end
                 end
 
-                % Time limit
+                % Time limit (C: time_limit branch)
                 if s.time_limit > 0 && toc(t_solve) >= s.time_limit
-                    % Try approximate check before declaring time limit
+                    % Try approximate (10x tolerances) check before declaring time limit
                     [conv_tl, sv_tl] = osqp.Solver.checkConvergence( ...
                         xs, zs, ys, xs_prev, ys_prev, ...
                         obj.Ps, obj.qs, obj.As, obj.ls, obj.us, ...
@@ -308,17 +284,19 @@ classdef Solver < handle
                     if conv_tl
                         status_val = sv_tl;
                     else
-                        status_val = osqp.Solver.STATUS_TIME_LIMIT_REACHED;
+                        status_val = osqp.constant.OSQP_TIME_LIMIT_REACHED;
                     end
                     break;
                 end
 
-                % Adaptive rho
+                % Adaptive rho update (C: adapt_rho)
+                %   Recomputes rho based on primal/dual residual ratio and
+                %   refactorizes KKT if rho changed significantly.
                 if s.adaptive_rho
                     if adaptive_rho_interval == 0
                         % v1.0: iteration-count-based interval
                         adaptive_rho_interval = ...
-                            osqp.Solver.ADAPTIVE_RHO_MULTIPLE_TERMINATION * ...
+                            osqp.constant.OSQP_ADAPTIVE_RHO_MULTIPLE_TERMINATION * ...
                             max(s.check_termination, 1);
                     end
                     if adaptive_rho_interval > 0 && mod(iter, adaptive_rho_interval) == 0
@@ -338,26 +316,29 @@ classdef Solver < handle
 
             obj.solve_time = toc(t_solve);
 
-            % Final convergence test if loop ended without converging
-            if status_val == osqp.Solver.STATUS_UNSOLVED
+            % Post-loop convergence check (C: check_termination after loop)
+            %   First exact, then approximate (10x tolerances), then max_iter.
+            if status_val == osqp.constant.OSQP_UNSOLVED
                 [~, status_val] = osqp.Solver.checkConvergence( ...
                     xs, zs, ys, xs_prev, ys_prev, ...
                     obj.Ps, obj.qs, obj.As, obj.ls, obj.us, ...
                     n, m, s, obj.scl);
                 % If still unsolved, try approximate check (10x tolerances)
                 % matching C code's post-loop check_termination(solver, 1)
-                if status_val == osqp.Solver.STATUS_UNSOLVED
+                if status_val == osqp.constant.OSQP_UNSOLVED
                     [~, status_val] = osqp.Solver.checkConvergence( ...
                         xs, zs, ys, xs_prev, ys_prev, ...
                         obj.Ps, obj.qs, obj.As, obj.ls, obj.us, ...
                         n, m, s, obj.scl, true);  % approximate = true
                 end
-                if status_val == osqp.Solver.STATUS_UNSOLVED
-                    status_val = osqp.Solver.STATUS_MAX_ITER_REACHED;
+                if status_val == osqp.constant.OSQP_UNSOLVED
+                    status_val = osqp.constant.OSQP_MAX_ITER_REACHED;
                 end
             end
 
-            % Unscale solution
+            % Unscale solution back to original problem space
+            %   x = D * xs,  z = Einv * zs,  y = E * ys / c
+            %   C: unscale_solution()
             x_out = obj.scl.D    .* xs;
             z_out = obj.scl.Einv .* zs;
             y_out = obj.scl.E    .* ys * obj.scl.cinv;
@@ -377,10 +358,12 @@ classdef Solver < handle
             results.info.solve_time  = obj.solve_time;
             results.info.update_time = obj.update_time;
 
+            % Build result struct based on termination status
+            %   C: store_solution() and update_info()
             solution_present = ismember(status_val, [ ...
-                osqp.Solver.STATUS_SOLVED, ...
-                osqp.Solver.STATUS_SOLVED_INACCURATE, ...
-                osqp.Solver.STATUS_MAX_ITER_REACHED]);
+                osqp.constant.OSQP_SOLVED, ...
+                osqp.constant.OSQP_SOLVED_INACCURATE, ...
+                osqp.constant.OSQP_MAX_ITER_REACHED]);
 
             if solution_present
                 results.x = x_out;
@@ -392,8 +375,8 @@ classdef Solver < handle
                     obj.q_' * x_out;
                 results.info.pri_res = norm(obj.A_ * x_out - z_out, inf);
                 results.info.dua_res = norm(Pfull * x_out + obj.q_ + obj.A_' * y_out, inf);
-            elseif status_val == osqp.Solver.STATUS_PRIMAL_INFEASIBLE || ...
-                    status_val == osqp.Solver.STATUS_PRIMAL_INFEASIBLE_INACCURATE
+            elseif status_val == osqp.constant.OSQP_PRIMAL_INFEASIBLE || ...
+                    status_val == osqp.constant.OSQP_PRIMAL_INFEASIBLE_INACCURATE
                 results.x = nan(n, 1);
                 results.y = nan(m, 1);
                 delta_y = obj.scl.E .* (ys - ys_prev);
@@ -405,8 +388,8 @@ classdef Solver < handle
                 results.info.obj_val = inf;
                 results.info.pri_res = inf;
                 results.info.dua_res = inf;
-            elseif status_val == osqp.Solver.STATUS_DUAL_INFEASIBLE || ...
-                    status_val == osqp.Solver.STATUS_DUAL_INFEASIBLE_INACCURATE
+            elseif status_val == osqp.constant.OSQP_DUAL_INFEASIBLE || ...
+                    status_val == osqp.constant.OSQP_DUAL_INFEASIBLE_INACCURATE
                 results.x = nan(n, 1);
                 results.y = nan(m, 1);
                 results.prim_inf_cert = nan(m, 1);
@@ -428,9 +411,12 @@ classdef Solver < handle
                 results.info.dua_res = inf;
             end
 
-            % Polishing (C code only polishes when status == OSQP_SOLVED)
+            % Solution polishing (C: polish.c)
+            %   Identifies active constraints, forms a reduced KKT system,
+            %   solves it with iterative refinement, then applies Moreau
+            %   decomposition to ensure complementarity.
             results.info.status_polish = 0;
-            if s.polishing && status_val == osqp.Solver.STATUS_SOLVED
+            if s.polishing && status_val == osqp.constant.OSQP_SOLVED
                 t_polish = tic;
                 results = osqp.Solver.polishSolution(results, ...
                     obj.P_triu, obj.q_, obj.A_, obj.l_, obj.u_, s);
@@ -497,14 +483,14 @@ classdef Solver < handle
                     if numel(l_new) ~= obj.m_
                         error('OSQP:update', 'l must have length m=%d', obj.m_);
                     end
-                    obj.l_ = max(l_new, -osqp.Solver.OSQP_INFTY);
+                    obj.l_ = max(l_new, -osqp.constant.OSQP_INFTY);
                 end
                 if isfield(newData, 'u')
                     u_new = double(full(newData.u(:)));
                     if numel(u_new) ~= obj.m_
                         error('OSQP:update', 'u must have length m=%d', obj.m_);
                     end
-                    obj.u_ = min(u_new, osqp.Solver.OSQP_INFTY);
+                    obj.u_ = min(u_new, osqp.constant.OSQP_INFTY);
                 end
                 obj.constr_type = osqp.Solver.classifyConstraints(obj.l_, obj.u_);
                 [obj.rho_vec, obj.rho_inv_vec] = osqp.Solver.makeRhoVec( ...
@@ -742,7 +728,7 @@ classdef Solver < handle
             r.dual_inf_cert = nan(n, 1);
             r.info.iter          = 0;
             r.info.status        = 'unsolved';
-            r.info.status_val    = osqp.Solver.STATUS_UNSOLVED;
+            r.info.status_val    = osqp.constant.OSQP_UNSOLVED;
             r.info.status_polish = 0;
             r.info.obj_val       = nan;
             r.info.pri_res       = nan;
@@ -757,45 +743,50 @@ classdef Solver < handle
         end
 
         function ctype = classifyConstraints(l, u)
-            % Classify constraints matching C code ew_bounds_type:
-            %   -1 = loose (both bounds >= INFTY*MIN_SCALING) -> RHO_MIN
-            %    0 = inequality (l != u)                      -> rho
-            %    1 = equality  (|l - u| < RHO_TOL)            -> RHO_EQ * rho
+            % CLASSIFYCONSTRAINTS  Constraint type for per-row rho.
+            %   Matches C code ew_bounds_type() in auxil.c:
+            %   -1 = loose (both bounds >= INFTY_THRESH) → uses RHO_MIN
+            %    0 = inequality (l != u)                 → uses rho
+            %    1 = equality  (|l - u| < RHO_TOL)       → uses RHO_EQ * rho
             m = numel(l);
-            INF = osqp.Solver.OSQP_INFTY;
-            MIN_S = osqp.Solver.MIN_SCALING;
+            INF = osqp.constant.OSQP_INFTY;
+            MIN_S = osqp.constant.OSQP_MIN_SCALING;
             thr = INF * MIN_S;
             ctype = zeros(m, 1);             % default: inequality (0)
             loose = (l <= -thr) & (u >= thr);
             ctype(loose) = -1;
-            eq = abs(l - u) < osqp.Solver.RHO_TOL;
+            eq = abs(l - u) < osqp.constant.OSQP_RHO_TOL;
             ctype(eq) = 1;
         end
 
         function [rho_vec, rho_inv_vec] = makeRhoVec(ctype, rho, m)
-            % Build per-constraint rho vector matching C code set_rho_vec:
-            %   ctype -1 (loose):     RHO_MIN
+            % MAKERHOVEX  Per-constraint rho vector (C: set_rho_vec).
+            %   Assigns different rho values by constraint type:
+            %   ctype -1 (loose):     RHO_MIN  (1e-6)
             %   ctype  0 (inequality): rho
-            %   ctype  1 (equality):   RHO_EQ_OVER_RHO_INEQ * rho
+            %   ctype  1 (equality):   RHO_EQ_OVER_RHO_INEQ * rho  (1e3 * rho)
             if m == 0
                 rho_vec = zeros(0, 1); rho_inv_vec = zeros(0, 1); return;
             end
-            rho = max(min(rho, osqp.Solver.RHO_MAX), osqp.Solver.RHO_MIN);
+            rho = max(min(rho, osqp.constant.OSQP_RHO_MAX), osqp.constant.OSQP_RHO_MIN);
             rho_vec = rho * ones(m, 1);
-            rho_vec(ctype == -1) = osqp.Solver.RHO_MIN;
-            rho_vec(ctype == 1)  = osqp.Solver.RHO_EQ_OVER_RHO_INEQ * rho;
+            rho_vec(ctype == -1) = osqp.constant.OSQP_RHO_MIN;
+            rho_vec(ctype == 1)  = osqp.constant.OSQP_RHO_EQ_OVER_RHO_INEQ * rho;
             rho_inv_vec = 1 ./ rho_vec;
         end
 
         function [scl, Ps, qs, As, ls, us] = scaleProblem(P_triu, q, A, l, u, opts)
-            % Ruiz equilibration matching C code scale_data / compute_inf_norm_cols_KKT.
-            % Scales P, A, q in-place each iteration (as C does), accumulating D, E, c.
+            % SCALEPROBLEM  Ruiz equilibration (C: scaling.c / scale_data).
+            %   Each iteration: compute column inf-norms of the KKT matrix
+            %   [P A'; A 0], take their sqrt-inverse as scaling factors D/E,
+            %   then apply to P, A, q.  Finally normalize cost by c.
+            %   Accumulates D, E, c over opts.scaling iterations.
             n = size(P_triu, 1);
             m = size(A, 1);
             num_iter = opts.scaling;
-            INF = osqp.Solver.OSQP_INFTY;
-            MIN_S = osqp.Solver.MIN_SCALING;
-            MAX_S = osqp.Solver.MAX_SCALING;
+            INF = osqp.constant.OSQP_INFTY;
+            MIN_S = osqp.constant.OSQP_MIN_SCALING;
+            MAX_S = osqp.constant.OSQP_MAX_SCALING;
 
             D = ones(n, 1);
             E = ones(m, 1);
@@ -814,8 +805,9 @@ classdef Solver < handle
             qw = q;
 
             for k = 1:num_iter
-                % --- Column inf-norms of KKT top block ---
-                % D_temp = max(col_inf_norm(P_current), col_inf_norm(A_current))
+                % --- Scaling iteration k ---
+                % Compute column inf-norms of [P; A] (the KKT top block).
+                % D_temp scales variables (columns), E_temp scales constraints (rows).
                 D_temp = full(max(abs(Pw)))';           % col inf-norms of P (n×1)
                 if m > 0
                     D_temp = max(D_temp, full(max(abs(Aw)))');
@@ -828,7 +820,8 @@ classdef Solver < handle
                     E_temp = ones(0, 1);
                 end
 
-                % Limit scaling (matching limit_scaling_vector in C)
+                % Clamp scaling factors to [MIN_SCALING, MAX_SCALING]
+                % (C: limit_scaling_vector)
                 D_temp(D_temp < MIN_S) = 1.0;
                 D_temp = min(D_temp, MAX_S);
                 if m > 0
@@ -857,8 +850,9 @@ classdef Solver < handle
                     E = E .* E_temp;
                 end
 
-                % --- Cost normalization (matching C) ---
-                % avg column inf-norm of current P
+                % --- Cost normalization ---
+                % Normalize objective by the average column inf-norm of P
+                % combined with the inf-norm of q (C: compute_inf_norm_cols_P_scaled)
                 col_norms_P = full(max(abs(Pw)));
                 avg_col_norm = sum(col_norms_P, 2) / max(n, 1);
                 inf_norm_q = norm(qw, inf);
@@ -905,7 +899,7 @@ classdef Solver < handle
             %   When approximate=true, uses 10x tolerances and returns
             %   INACCURATE status variants.
             if nargin < 15, approximate = false; end
-            status_val = osqp.Solver.STATUS_UNSOLVED;
+            status_val = osqp.constant.OSQP_UNSOLVED;
             converged  = false;
 
             % Determine whether to unscale
@@ -920,7 +914,8 @@ classdef Solver < handle
             Pfull = Ps + Ps' - diag(diag(Ps));
             Pxs = Pfull * xs;
 
-            % --- Primal residual ---
+            % --- Primal residual: ||Ax - z||_inf ---
+            %   (optionally unscaled: ||Einv .* (Ax - z)||_inf)
             if m > 0
                 prim_resid_vec = As * xs - zs;
                 Axs = As * xs;
@@ -939,7 +934,8 @@ classdef Solver < handle
                 prim_res = 0;
             end
 
-            % --- Dual residual ---
+            % --- Dual residual: ||Px + q + A'y||_inf ---
+            %   (optionally unscaled: cinv * ||Dinv .* (Px + q + A'y)||_inf)
             if m > 0
                 Atys = As' * ys;
                 dual_resid_vec = Pxs + qs + Atys;
@@ -954,14 +950,14 @@ classdef Solver < handle
             end
 
             % --- Check for divergence (non-convexity) ---
-            if prim_res > osqp.Solver.OSQP_INFTY || ...
-                    dual_res > osqp.Solver.OSQP_INFTY
-                status_val = osqp.Solver.STATUS_NON_CONVEX;
+            if prim_res > osqp.constant.OSQP_INFTY || ...
+                    dual_res > osqp.constant.OSQP_INFTY
+                status_val = osqp.constant.OSQP_NON_CONVEX;
                 converged = true;
                 return;
             end
 
-            % --- Primal tolerance ---
+            % --- Primal tolerance: eps_abs + eps_rel * max(||Ax||, ||z||) ---
             if m > 0
                 if do_unscale
                     max_rel_prim = max( ...
@@ -975,7 +971,7 @@ classdef Solver < handle
                 eps_prim = tol_mult * s.eps_abs;
             end
 
-            % --- Dual tolerance ---
+            % --- Dual tolerance: eps_abs + eps_rel * max(||Px||, ||q||, ||A'y||) ---
             if do_unscale
                 max_rel_dual = norm(scl.Dinv .* qs, inf);
                 if m > 0
@@ -997,21 +993,23 @@ classdef Solver < handle
             % --- Optimality ---
             if prim_res <= eps_prim && dual_res <= eps_dual
                 if approximate
-                    status_val = osqp.Solver.STATUS_SOLVED_INACCURATE;
+                    status_val = osqp.constant.OSQP_SOLVED_INACCURATE;
                 else
-                    status_val = osqp.Solver.STATUS_SOLVED;
+                    status_val = osqp.constant.OSQP_SOLVED;
                 end
                 converged = true;
                 return;
             end
 
-            % --- Primal infeasibility (certificate: delta_y) ---
+            % --- Primal infeasibility certificate (C: is_primal_infeasible) ---
+            %   If ||A' * delta_y|| < eps * ||delta_y|| and
+            %   support_fn(delta_y, l, u) < 0, problem is primal infeasible.
             if m > 0
                 dy  = ys - ys_prev;
                 eps_pi = tol_mult * s.eps_prim_inf;
 
-                % Project delta_y onto the polar of the recession cone
-                INF_THRESH = osqp.Solver.OSQP_INFTY * osqp.Solver.MIN_SCALING;
+                % Project delta_y onto polar of recession cone of [l, u]
+                INF_THRESH = osqp.constant.OSQP_INFTY_THRESH;
                 for i = 1:m
                     li_fin = abs(ls(i)) < INF_THRESH;
                     ui_fin = abs(us(i)) < INF_THRESH;
@@ -1050,9 +1048,9 @@ classdef Solver < handle
                         end
                         if norm(ATdy, inf) < eps_pi * norm_dy
                             if approximate
-                                status_val = osqp.Solver.STATUS_PRIMAL_INFEASIBLE_INACCURATE;
+                                status_val = osqp.constant.OSQP_PRIMAL_INFEASIBLE_INACCURATE;
                             else
-                                status_val = osqp.Solver.STATUS_PRIMAL_INFEASIBLE;
+                                status_val = osqp.constant.OSQP_PRIMAL_INFEASIBLE;
                             end
                             converged = true;
                             return;
@@ -1061,7 +1059,10 @@ classdef Solver < handle
                 end
             end
 
-            % --- Dual infeasibility (certificate: delta_x) ---
+            % --- Dual infeasibility certificate (C: is_dual_infeasible) ---
+            %   If q' * delta_x < 0 and ||P * delta_x|| < eps * ||delta_x||
+            %   and A * delta_x in recession cone of [l, u], problem is
+            %   dual infeasible (unbounded below).
             dx = xs - xs_prev;
             eps_di = tol_mult * s.eps_dual_inf;
 
@@ -1074,7 +1075,7 @@ classdef Solver < handle
                 cost_scaling = 1.0;
             end
 
-            if norm_dx > osqp.Solver.DIVISION_TOL
+            if norm_dx > osqp.constant.OSQP_DIVISION_TOL
                 % Check q' * delta_x < 0
                 qdx = qs' * dx;
                 if qdx < 0
@@ -1097,9 +1098,9 @@ classdef Solver < handle
                         end
                         if ok
                             if approximate
-                                status_val = osqp.Solver.STATUS_DUAL_INFEASIBLE_INACCURATE;
+                                status_val = osqp.constant.OSQP_DUAL_INFEASIBLE_INACCURATE;
                             else
-                                status_val = osqp.Solver.STATUS_DUAL_INFEASIBLE;
+                                status_val = osqp.constant.OSQP_DUAL_INFEASIBLE;
                             end
                             converged = true;
                             return;
@@ -1113,7 +1114,7 @@ classdef Solver < handle
             % Support function of polar recession cone.
             % Used only as a helper — the main primal inf check
             % is now inline in checkConvergence with proper unscaling.
-            INF_THRESH = osqp.Solver.OSQP_INFTY * osqp.Solver.MIN_SCALING;
+            INF_THRESH = osqp.constant.OSQP_INFTY_THRESH;
             vpos = max(v, 0);
             vneg = min(v, 0);
             val  = 0;
@@ -1128,7 +1129,7 @@ classdef Solver < handle
             % Check whether Adx lies in the recession cone of [l, u].
             % eps is pre-multiplied by norm_delta_x by the caller,
             % matching C code's in_reccone(Adx, l, u, thr, eps*norm).
-            INF_THRESH = osqp.Solver.OSQP_INFTY * osqp.Solver.MIN_SCALING;
+            INF_THRESH = osqp.constant.OSQP_INFTY_THRESH;
             ok = true;
             for i = 1:numel(l)
                 li = l(i); ui = u(i);
@@ -1146,9 +1147,10 @@ classdef Solver < handle
         end
 
         function new_rho = computeNewRho(xs, zs, ys, Ps, qs, As, rho, tol, ~, m)
-            % Compute rho estimate matching C code compute_rho_estimate.
-            % Normalizes primal/dual residuals before computing ratio.
-            DTOL = osqp.Solver.DIVISION_TOL;
+            % COMPUTENEWRHO  Adaptive rho estimate (C: compute_rho_estimate).
+            %   rho_new = rho * sqrt(prim_res_normalized / dual_res_normalized)
+            %   Only updates if the ratio exceeds adaptive_rho_tolerance.
+            DTOL = osqp.constant.OSQP_DIVISION_TOL;
             Pfull = Ps + Ps' - diag(diag(Ps));
 
             % Primal residual
@@ -1186,8 +1188,8 @@ classdef Solver < handle
             dual_res_n = dual_res / (dual_norm + DTOL);
 
             rho_estimate = rho * sqrt(prim_res_n / dual_res_n);
-            rho_estimate = max(min(rho_estimate, osqp.Solver.RHO_MAX), ...
-                               osqp.Solver.RHO_MIN);
+            rho_estimate = max(min(rho_estimate, osqp.constant.OSQP_RHO_MAX), ...
+                               osqp.constant.OSQP_RHO_MIN);
 
             if rho_estimate > rho * tol || rho_estimate < rho / tol
                 new_rho = rho_estimate;
@@ -1197,13 +1199,20 @@ classdef Solver < handle
         end
 
         function results = polishSolution(results, P_triu, q, A, l, u, s)
+            % POLISHSOLUTION  Solution polishing (C: polish.c).
+            %   1. Identify active constraints from dual sign and primal slack.
+            %   2. If no active set: solve unconstrained with delta-regularized P.
+            %   3. Otherwise: form reduced KKT with active rows of A,
+            %      solve with iterative refinement, then apply Moreau
+            %      decomposition z = clip(y + Ax, l, u) for complementarity.
             n = numel(q);
             m = size(A, 1);
             x = results.x;
             y = results.y;
             Pfull = P_triu + P_triu' - diag(diag(P_triu));
-            INF = osqp.Solver.OSQP_INFTY;
+            INF = osqp.constant.OSQP_INFTY;
 
+            % Determine active set from sign of dual and primal distance
             Ax = A * x;
             tol_act = max(s.delta, s.eps_abs);
             act_l = (y < -s.delta & abs(l) < INF) | ...
@@ -1214,6 +1223,7 @@ classdef Solver < handle
             n_act = numel(active_idx);
 
             if n_act == 0
+                % No active constraints → solve unconstrained regularized QP
                 try
                     Preg = Pfull + s.delta * speye(n);
                     x_pol = Preg \ (-q);
@@ -1240,6 +1250,7 @@ classdef Solver < handle
                 return;
             end
 
+            % Form reduced KKT system with active constraints (C: form_Ared)
             A_act = A(active_idx, :);
             b_act = zeros(n_act, 1);
             for k = 1:n_act
@@ -1254,6 +1265,9 @@ classdef Solver < handle
             end
 
             try
+                % Solve delta-regularized KKT system
+                %   [P + delta*I   A_act'] [x]   [-q   ]
+                %   [A_act        -delta*I] [y] = [b_act]
                 Kreg = [Pfull + s.delta*speye(n), A_act'; ...
                     A_act, -s.delta*speye(n_act)];
                 rhs0 = [-q; b_act];
@@ -1261,6 +1275,7 @@ classdef Solver < handle
                 x_pol = sol0(1:n);
                 y_act = sol0(n+1:end);
 
+                % Iterative refinement (C: polish_refine_iter loops)
                 for refine = 1:s.polish_refine_iter
                     res = rhs0 - Kreg * [x_pol; y_act];
                     delta_sol = Kreg \ res;
@@ -1273,8 +1288,8 @@ classdef Solver < handle
 
                 Ax_pol = A * x_pol;
 
-                % Normal cone projection (Moreau decomposition)
-                % Ensures z in C and y in N_C(z)
+                % Moreau decomposition: project (y + Ax) onto [l,u] to
+                % get z, then y_pol = (y + Ax) - z ensures z ∈ C, y ∈ N_C(z)
                 y_pol = y_pol + Ax_pol;
                 z_pol = min(max(y_pol, l), u);
                 y_pol = y_pol - z_pol;

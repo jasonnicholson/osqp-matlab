@@ -30,6 +30,17 @@ classdef constant
         OSQP_POLISH_NOT_PERFORMED         = 0
         OSQP_POLISH_SUCCESS               = 1
         OSQP_POLISH_NO_ACTIVE_SET_FOUND   = 2
+
+        % Algorithm constants (matching C code constants.h)
+        OSQP_INFTY_THRESH                 = 1e30 * 1e-4   % OSQP_INFTY * OSQP_MIN_SCALING
+        OSQP_RHO_MIN                      = 1e-6
+        OSQP_RHO_MAX                      = 1e6
+        OSQP_RHO_EQ_OVER_RHO_INEQ        = 1e3
+        OSQP_RHO_TOL                      = 1e-4
+        OSQP_MIN_SCALING                  = 1e-4
+        OSQP_MAX_SCALING                  = 1e4
+        OSQP_DIVISION_TOL                 = 1e-10
+        OSQP_ADAPTIVE_RHO_MULTIPLE_TERMINATION = 4
     end
 
     methods (Static)
