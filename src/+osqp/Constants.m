@@ -1,5 +1,5 @@
-classdef constant
-  % OSQP.CONSTANT  OSQP solver #define constants, mirroring osqp_api_constants.h.
+classdef Constants
+  % OSQP.Constants  OSQP solver #define Constants, mirroring osqp_api_Constants.h.
   %
   %   Enumeration types (solver status, polish status, etc.) are defined as separate classdef enumerations:
   %
@@ -11,8 +11,8 @@ classdef constant
   %     - osqp.ErrorType
   %
   %   Access as class properties:
-  %     osqp.constant.OSQP_INFTY
-  %     osqp.constant.OSQP_RHO_MIN
+  %     osqp.Constants.OSQP_INFTY
+  %     osqp.Constants.OSQP_RHO_MIN
   %
 
   properties
@@ -75,7 +75,7 @@ classdef constant
   end
 
   methods
-    function obj = constant()
+    function obj = Constants()
 
       arguments
       end
