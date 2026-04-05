@@ -1,0 +1,3 @@
+# Building Binaries
+
+Building binaries is temperamental. They are OS/architecture/compiler/matlab/toolchain dependent and may require different flags or settings on different platforms. The number of permutations is difficult to replicate. We provide a make_osqp.m script to help automate the process, but users may need to adjust flags or settings for their specific environment. Expect to have to modify make_osqp.m for your particular setup. AI can be very valuable in fixing issues when compiling.
