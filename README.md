@@ -1,6 +1,9 @@
-# OSQP-MATLAB — MATLAB Interface for OSQP v1.0.0
+# OSQP-MATLAB — MATLAB Interface for OSQP - Current a Fork - UNDER HEAVY CONSTRUCTION
 
-MATLAB wrapper for [OSQP](https://osqp.org/) v1.0.0: the Operator Splitting QP Solver.
+I forked this off from the official [OSQP-MATLAB](https://github.com/osqp/osqp-matlab) repository to experiment to update to OSQP C interface v1.0.0 and implement a MATLAB version. It has quickly diverged so much that I don't know if the team will take what I created. As well, GitHub won't let me push to a forked repo that doesn't use GIT LFS  when I am trying to use GIT LFS for the .mat files (best practice). 
+
+
+MATLAB wrapper for [OSQP](https://osqp.org/), the Operator Splitting QP Solver and a pure-MATLAB implementation for environments without a C compiler.
 
 OSQP solves convex quadratic programs of the form:
 
