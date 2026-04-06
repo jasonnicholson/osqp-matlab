@@ -2,6 +2,8 @@
 
 I forked this off from the official [OSQP-MATLAB](https://github.com/osqp/osqp-matlab) repository to experiment to update to OSQP C interface v1.0.0 and implement a MATLAB version. It has quickly diverged so much that I don't know if the team will take what I created. As well, GitHub won't let me push to a forked repo that doesn't use GIT LFS  when I am trying to use GIT LFS for the .mat files (best practice). 
 
+**Don't expect anything to work right now. I am ripping it apart and rebuilding it from the ground up. 2026-04-05**
+
 
 MATLAB wrapper for [OSQP](https://osqp.org/), the Operator Splitting QP Solver and a pure-MATLAB implementation for environments without a C compiler.
 
