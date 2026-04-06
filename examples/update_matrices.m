@@ -1,4 +1,4 @@
-% UPDATE_MATRICES Demonstrate matrix updates in OSQP v1.0.0
+% UPDATE_MATRICES Demonstrate matrix updates in OSQP
 %
 % Shows how to update P and A matrix values (same sparsity pattern).
 

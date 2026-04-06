@@ -1,4 +1,4 @@
-% BASIC_USAGE Basic usage of OSQP v1.0.0
+% BASIC_USAGE Basic usage of OSQP
 %
 % Demonstrates setting up, solving, and updating a QP problem.
 

@@ -1,5 +1,5 @@
 /*
- * osqp_mex.cpp — MATLAB MEX interface for OSQP v1.0.0
+ * osqp_mex.cpp — MATLAB MEX interface for OSQP
  *
  * Commands:
  *   'new'                         → create handle

@@ -5,7 +5,7 @@ classdef Options
     %   opts.max_iter = 1000;        % modify after construction
     %   s = opts.toStruct();         % for MEX passthrough
     %
-    %   Default values match OSQP v1.0.0.
+    %   Default values match OSQP.
 
     % -----------------------------------------------------------------
     %  ADMM parameters

@@ -1,5 +1,5 @@
 classdef basic_tests < matlab.unittest.TestCase
-    % BASIC_TESTS Basic QP tests for OSQP v1.0.0
+    % BASIC_TESTS Basic QP tests for OSQP
 
     properties
         P

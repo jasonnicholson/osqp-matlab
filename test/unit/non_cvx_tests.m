@@ -1,5 +1,5 @@
 classdef non_cvx_tests < matlab.unittest.TestCase
-    % NON_CVX_TESTS Test non-convex problem detection for OSQP v1.0.0
+    % NON_CVX_TESTS Test non-convex problem detection for OSQP
 
     methods(Test)
         function test_non_cvx_small_sigma(testCase)

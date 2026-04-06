@@ -1,5 +1,5 @@
 classdef update_matrices_tests < matlab.unittest.TestCase
-    % UPDATE_MATRICES_TESTS Test P and A matrix updates for OSQP v1.0.0
+    % UPDATE_MATRICES_TESTS Test P and A matrix updates for OSQP
 
     properties
         P

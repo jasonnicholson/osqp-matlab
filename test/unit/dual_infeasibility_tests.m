@@ -1,5 +1,5 @@
 classdef dual_infeasibility_tests < matlab.unittest.TestCase
-    % DUAL_INFEASIBILITY_TESTS Test dual infeasibility detection for OSQP v1.0.0
+    % DUAL_INFEASIBILITY_TESTS Test dual infeasibility detection for OSQP
 
     properties
         opts

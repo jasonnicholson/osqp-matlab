@@ -1,4 +1,4 @@
-% EXCEPTION_HANDLING Error handling in OSQP v1.0.0
+% EXCEPTION_HANDLING Error handling in OSQP
 %
 % Demonstrates how to handle errors from OSQP using try/catch.
 

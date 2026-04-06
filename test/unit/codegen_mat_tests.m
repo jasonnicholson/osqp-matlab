@@ -1,5 +1,5 @@
 classdef codegen_mat_tests < matlab.unittest.TestCase
-    % CODEGEN_MAT_TESTS Test code generation (embedded mode 2) for OSQP v1.0.0
+    % CODEGEN_MAT_TESTS Test code generation (embedded mode 2) for OSQP
 
     properties
         P

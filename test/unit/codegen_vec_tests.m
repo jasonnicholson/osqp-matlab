@@ -1,5 +1,5 @@
 classdef codegen_vec_tests < matlab.unittest.TestCase
-    % CODEGEN_VEC_TESTS Test code generation (embedded mode 1) for OSQP v1.0.0
+    % CODEGEN_VEC_TESTS Test code generation (embedded mode 1) for OSQP
 
     properties
         P

@@ -1,4 +1,4 @@
-% ADJOINT_DERIVATIVES Demonstrate adjoint derivatives in OSQP v1.0.0
+% ADJOINT_DERIVATIVES Demonstrate adjoint derivatives in OSQP
 %
 % Shows how to compute gradients of a loss function with respect to
 % problem data using adjoint differentiation.

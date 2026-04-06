@@ -1,5 +1,5 @@
 classdef primal_infeasibility_tests < matlab.unittest.TestCase
-    % PRIMAL_INFEASIBILITY_TESTS Test primal infeasibility detection for OSQP v1.0.0
+    % PRIMAL_INFEASIBILITY_TESTS Test primal infeasibility detection for OSQP
 
     properties
         opts

@@ -1,5 +1,5 @@
 classdef polishing_tests < matlab.unittest.TestCase
-    % POLISHING_TESTS Test polishing for OSQP v1.0.0
+    % POLISHING_TESTS Test polishing for OSQP
 
     properties
         tol

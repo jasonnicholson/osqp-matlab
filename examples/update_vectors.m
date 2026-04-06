@@ -1,4 +1,4 @@
-% UPDATE_VECTORS Demonstrate vector updates in OSQP v1.0.0
+% UPDATE_VECTORS Demonstrate vector updates in OSQP
 %
 % Shows how to update q, l, u vectors without re-setting up the solver.
 

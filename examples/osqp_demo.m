@@ -1,6 +1,5 @@
 % Demo showing the usage of OSQP from Matlab and the code generation features.
 % This problem is the same one that is presented in the osqp_demo.c file.
-% Updated for OSQP v1.0.0.
 
 % The problem data
 P = sparse([4., 1.; 1., 2.]);

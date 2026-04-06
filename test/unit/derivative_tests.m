@@ -1,5 +1,5 @@
 classdef derivative_tests < matlab.unittest.TestCase
-    % DERIVATIVE_TESTS Test adjoint derivatives for OSQP v1.0.0
+    % DERIVATIVE_TESTS Test adjoint derivatives for OSQP
     %
     % Tests verify adjoint derivative gradients against finite differences.
 

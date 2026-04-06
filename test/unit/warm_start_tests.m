@@ -1,5 +1,5 @@
 classdef warm_start_tests < matlab.unittest.TestCase
-    % WARM_START_TESTS Test warm starting for OSQP v1.0.0
+    % WARM_START_TESTS Test warm starting for OSQP
 
     properties
         P

@@ -1,5 +1,5 @@
 classdef feasibility_tests < matlab.unittest.TestCase
-    % FEASIBILITY_TESTS Test feasibility problems for OSQP v1.0.0
+    % FEASIBILITY_TESTS Test feasibility problems for OSQP
 
     properties
         P

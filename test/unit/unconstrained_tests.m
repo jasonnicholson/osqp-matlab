@@ -1,5 +1,5 @@
 classdef unconstrained_tests < matlab.unittest.TestCase
-    % UNCONSTRAINED_TESTS Test unconstrained QP for OSQP v1.0.0
+    % UNCONSTRAINED_TESTS Test unconstrained QP for OSQP
 
     properties
         P

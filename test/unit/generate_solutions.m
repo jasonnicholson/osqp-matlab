@@ -1,6 +1,6 @@
 function generate_solutions()
 % GENERATE_SOLUTIONS  Regenerate all reference solution .mat files
-%   using the current OSQP v1.0.0 solver.
+%   using the current OSQP solver.
 %
 %   Run this from the osqp-matlab root directory.
 

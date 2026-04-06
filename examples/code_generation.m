@@ -1,4 +1,4 @@
-% CODE_GENERATION Demonstrate native code generation in OSQP v1.0.0
+% CODE_GENERATION Demonstrate native code generation in OSQP
 %
 % Generates embedded C code using the native osqp_codegen() API.
 
