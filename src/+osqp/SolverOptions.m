@@ -1,9 +1,9 @@
-classdef Options
-    % OSQP.OPTIONS  Validated settings for the OSQP solver.
+classdef SolverOptions
+    % OSQP.SOLVEROPTIONS  Validated settings for the OSQP solver.
     %
-    %   opts = osqp.Options          % all defaults
-    %   opts.max_iter = 1000;        % modify after construction
-    %   s = opts.toStruct();         % for MEX passthrough
+    %   opts = osqp.SolverOptions          % all defaults
+    %   opts.max_iter = 1000;              % modify after construction
+    %   s = opts.toStruct();               % for MEX passthrough
     %
     %   Default values match OSQP.
 

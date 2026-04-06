@@ -93,7 +93,7 @@ classdef Solver < handle
             obj.opts = options;
             obj.constants = nameValue.constants;
 
-            [obj.m_, obj.n_, obj.P_triu, obj.q_, obj.A_, obj.l_, obj.u_] = osqp.validateData(P, q, A, l, u, obj.constants.OSQP_INFTY);
+            [obj.m_, obj.n_, obj.P_triu, obj.q_, obj.A_, obj.l_, obj.u_] = validateData(P, q, A, l, u, obj.constants.OSQP_INFTY);
 
             % --- Convexity check (matching C: LDL-based inertia) ---
             %   C code factors KKT (with P+sigma*I) using QDLDL and
