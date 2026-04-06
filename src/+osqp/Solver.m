@@ -83,8 +83,8 @@ classdef Solver < handle
                 A (:,:) {mustBeNumeric}
                 l (:,1) {mustBeNumeric}
                 u (:,1) {mustBeNumeric}
-                options (1,1) osqp.Options = osqp.Options();
-                nameValue.constants (1,1) osqp.Constants = osqp.Constants();
+                options (1,1) osqp.SolverOptions = osqp.SolverOptions();
+                nameValue.constants (1,1) osqp.solver.Constants = osqp.solver.Constants();
             end
 
             t_start = tic;
