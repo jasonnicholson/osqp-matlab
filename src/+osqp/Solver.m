@@ -62,77 +62,38 @@ classdef Solver < handle
         polish_time = 0
 
         % Cached algorithm constants (populated once during setup)
-        C_          % struct: all constants from osqp.constant + derived values
+        constants          % struct: all constants from osqp.constant + derived values
     end
 
     % =====================================================================
     %  Public API
     % =====================================================================
     methods
-        function setup(obj, P, q, A, l, u, varargin)
+        function setup(obj, P, q, A, l, u, options, nameValue)
             % SETUP  Configure solver with problem data.
             %
             %   setup(P, q, A, l, u)
-            %   setup(P, q, A, l, u, 'Name', Value, ...)
-            %   setup(P, q, A, l, u, opts_struct)
-            %   setup(P, q, A, l, u, osqp.Options)
+            %   setup(P, q, A, l, u, options)
+            %   setup(P, q, A, l, u, options, 'constants', constants)
+
+            arguments
+                obj
+                P (:,:) {mustBeNumeric}
+                q (:,1) {mustBeNumeric}
+                A (:,:) {mustBeNumeric}
+                l (:,1) {mustBeNumeric}
+                u (:,1) {mustBeNumeric}
+                options (1,1) osqp.Options = osqp.Options();
+                nameValue.constants (1,1) osqp.Constants = osqp.Constants();
+            end
+
             t_start = tic;
 
-            % --- Parse settings ---
-            obj.opts = osqp.Options();
-            if ~isempty(varargin)
-                if isa(varargin{1}, 'osqp.Options')
-                    obj.opts = varargin{1};
-                elseif isstruct(varargin{1})
-                    obj.opts = osqp.Options.fromStruct(varargin{1});
-                else
-                    s = struct(varargin{:});
-                    obj.opts = osqp.Options.fromStruct(s);
-                end
-            end
+            % Save options and constants
+            obj.opts = options;
+            obj.constants = nameValue.constants;
 
-            % --- Cache algorithm constants ---
-            obj.cacheConstants();
-
-            % --- Determine dimensions ---
-            if isempty(P)
-                if ~isempty(q)
-                    obj.n_ = numel(q);
-                elseif ~isempty(A)
-                    obj.n_ = size(A, 2);
-                else
-                    error('OSQP:setup', 'Problem has no variables.');
-                end
-            else
-                obj.n_ = size(P, 1);
-            end
-            if isempty(A)
-                obj.m_ = 0;
-            else
-                obj.m_ = size(A, 1);
-            end
-            n = obj.n_;
-            m = obj.m_;
-
-            % --- Default missing data ---
-            if isempty(P), P = sparse(n, n); end
-            if isempty(q), q = zeros(n, 1); end
-            if isempty(A), A = sparse(0, n); l = zeros(0, 1); u = zeros(0, 1); end
-            if isempty(l), l = -inf(m, 1); end
-            if isempty(u), u = inf(m, 1); end
-
-            % --- Validate and store ---
-            q = double(full(q(:)));
-            l = double(full(l(:)));
-            u = double(full(u(:)));
-            P = sparse(P);
-            if ~istriu(P), P = triu(P); end
-
-            obj.P_triu = P;
-            obj.q_ = q;
-            obj.A_ = sparse(A);
-            obj.l_ = max(l, -obj.C_.OSQP_INFTY);
-            obj.u_ = min(u,  obj.C_.OSQP_INFTY);
+            [obj.m_, obj.n_, obj.P_triu, obj.q_, obj.A_, obj.l_, obj.u_] = osqp.validateData(P, q, A, l, u, obj.constants.OSQP_INFTY);
 
             % --- Convexity check (matching C: LDL-based inertia) ---
             %   C code factors KKT (with P+sigma*I) using QDLDL and
@@ -676,38 +637,6 @@ classdef Solver < handle
     %  Private helpers
     % =====================================================================
     methods (Access = private)
-        function cacheConstants(obj)
-            % CACHECONSTANTS  Read base constants from osqp.constant and
-            % cache them (with derived values) for the solve loop.
-            % Called once at the beginning of setup().  Derived values
-            % (INFTY_THRESH, DIVISION_TOL) are computed from base
-            % constants rather than stored as literals.
-            C.OSQP_INFTY        = osqp.constant.OSQP_INFTY;
-            C.OSQP_INFTY_THRESH = osqp.constant.OSQP_INFTY * osqp.constant.OSQP_MIN_SCALING;
-            C.OSQP_DIVISION_TOL = 1 / osqp.constant.OSQP_INFTY;
-            C.OSQP_RHO_MIN      = osqp.constant.OSQP_RHO_MIN;
-            C.OSQP_RHO_MAX      = osqp.constant.OSQP_RHO_MAX;
-            C.OSQP_RHO_EQ_OVER_RHO_INEQ = osqp.constant.OSQP_RHO_EQ_OVER_RHO_INEQ;
-            C.OSQP_RHO_TOL      = osqp.constant.OSQP_RHO_TOL;
-            C.OSQP_MIN_SCALING   = osqp.constant.OSQP_MIN_SCALING;
-            C.OSQP_MAX_SCALING   = osqp.constant.OSQP_MAX_SCALING;
-            C.OSQP_ADAPTIVE_RHO_MULTIPLE_TERMINATION = ...
-                osqp.constant.OSQP_ADAPTIVE_RHO_MULTIPLE_TERMINATION;
-
-            % Status codes
-            C.OSQP_SOLVED                       = osqp.constant.OSQP_SOLVED;
-            C.OSQP_SOLVED_INACCURATE            = osqp.constant.OSQP_SOLVED_INACCURATE;
-            C.OSQP_PRIMAL_INFEASIBLE            = osqp.constant.OSQP_PRIMAL_INFEASIBLE;
-            C.OSQP_PRIMAL_INFEASIBLE_INACCURATE = osqp.constant.OSQP_PRIMAL_INFEASIBLE_INACCURATE;
-            C.OSQP_DUAL_INFEASIBLE              = osqp.constant.OSQP_DUAL_INFEASIBLE;
-            C.OSQP_DUAL_INFEASIBLE_INACCURATE   = osqp.constant.OSQP_DUAL_INFEASIBLE_INACCURATE;
-            C.OSQP_MAX_ITER_REACHED             = osqp.constant.OSQP_MAX_ITER_REACHED;
-            C.OSQP_TIME_LIMIT_REACHED           = osqp.constant.OSQP_TIME_LIMIT_REACHED;
-            C.OSQP_NON_CONVEX                   = osqp.constant.OSQP_NON_CONVEX;
-            C.OSQP_UNSOLVED                     = osqp.constant.OSQP_UNSOLVED;
-
-            obj.C_ = C;
-        end
 
         function factorizeKKT(obj)
             % FACTORIZEKKT  Build and factorize the KKT matrix.

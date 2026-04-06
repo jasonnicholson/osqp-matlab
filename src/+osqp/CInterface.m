@@ -66,47 +66,29 @@ classdef CInterface < handle
             % SETUP  Configure solver with problem data.
             %
             %   setup(P, q, A, l, u)
-            %   setup(P, q, A, l, u, 'Name', Value, ...)
-            %   setup(P, q, A, l, u, settings_struct)
+            %   setup(P, q, A, l, u, options)
 
-            INFTY = 1e30;
-
-            % Determine dimensions
-            if isempty(P)
-                if ~isempty(q)
-                    n = numel(q);
-                elseif ~isempty(A)
-                    n = size(A, 2);
-                else
-                    error('OSQP:setup', 'Problem has no variables.');
-                end
-            else
-                n = size(P, 1);
-            end
-            if isempty(A), m = 0; else, m = size(A, 1); end
-
-            % Defaults
-            if isempty(P), P = sparse(n, n); else, P = sparse(P); end
-            if ~istriu(P), P = triu(P); end
-            if isempty(q), q = zeros(n, 1); else, q = full(q(:)); end
-
-            if isempty(A)
-                A = sparse(0, n); l = zeros(0, 1); u = zeros(0, 1);
-            else
-                A = sparse(A);
-                if isempty(l), l = -inf(m, 1); end
-                if isempty(u), u =  inf(m, 1); end
-                l = full(l(:)); u = full(u(:));
+            arguments
+                obj
+                P (:,:) {mustBeNumeric}
+                q (:,1) {mustBeNumeric}
+                A (:,:) {mustBeNumeric}
+                l (:,1) {mustBeNumeric}
+                u (:,1) {mustBeNumeric}
             end
 
-            l = max(l, -INFTY);
-            u = min(u,  INFTY);
+            arguments (Repeating)
+                varargin
+            end
+
+            % Validate and infer problem dimensions
+            [m, n, P, q, A, l, u] = validateData(P, q, A, l, u, obj.constant('OSQP_INFTY'));
+
 
             % Build settings struct for MEX
             theSettings = obj.validateSettings(true, varargin{:});
 
-            osqp_mex('setup', obj.objectHandle, ...
-                n, m, P, q, A, l, u, theSettings);
+            osqp_mex('setup', obj.objectHandle, n, m, P, q, A, l, u, theSettings);
         end
 
         function out = solve(obj)

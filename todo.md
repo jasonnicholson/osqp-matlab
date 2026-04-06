@@ -8,3 +8,6 @@
 ## To Do Later
 [ ] Compile on different OS's. I don't trust that this make script is going to work across all platforms. Focus on Linux and Windows. 2020a to 2026a. 
 [ ] 
+
+## Questions
+[ ] Are enumerations slow? Does int32 versus double matter? MATLAB prefers double.
