@@ -1,4 +1,4 @@
-classdef LinSysSolverType
+classdef LinSysSolverType < double
   % OSQP.LINSSSOLVERTYPE  Linear system solver types.
   %   Mirrors osqp_linsys_solver_type in osqp_api_constants.h.
 

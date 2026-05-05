@@ -1,4 +1,4 @@
-classdef MatlabLDLSolver < osqp.LinearSolver
+classdef MatlabLDLSolver < osqp.solver.LinearSolver
     % OSQP.LINSYS.MATLABLDLSOLVER  KKT solver using MATLAB's decomposition(K,'ldl').
     %
     %   Uses MATLAB's built-in LDL factorization via the decomposition
@@ -7,8 +7,8 @@ classdef MatlabLDLSolver < osqp.LinearSolver
     %   for fast repeated solves.
     %
     %   Example:
-    %     K = osqp.LinearSolver.buildKKT(P, A, rho_vec, sigma, n, m);
-    %     solver = osqp.linsys.MatlabLDLSolver(K);
+    %     K = osqp.solver.LinearSolver.buildKKT(P, A, rho_vec, sigma, n, m);
+    %     solver = osqp.solver.linsys.MatlabLDLSolver(K);
     %     x = solver \ b;
 
     properties (Access = private)

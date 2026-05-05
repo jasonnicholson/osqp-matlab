@@ -1,4 +1,4 @@
-classdef ErrorType
+classdef ErrorType < double
   % OSQP.ERRORTYPE  Solver error codes.
   %   Mirrors osqp_error_type in osqp_api_constants.h.
 

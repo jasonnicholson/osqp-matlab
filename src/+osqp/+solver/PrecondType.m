@@ -1,4 +1,4 @@
-classdef PrecondType
+classdef PrecondType < double
   % OSQP.PRECONDTYPE  Preconditioner types for the CG method.
   %   Mirrors osqp_precond_type in osqp_api_constants.h.
 

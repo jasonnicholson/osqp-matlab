@@ -1,12 +1,12 @@
-classdef QDLDLSolver < osqp.LinearSolver
+classdef QDLDLSolver < osqp.solver.LinearSolver
     % OSQP.LINSYS.QDLDLSOLVER  KKT solver using pure-MATLAB QDLDL.
     %
     %   Wraps QDLDLFactorization.fromMatrix() from the qdldl.m package.
     %   Requires qdldl.m/src to be on the MATLAB path.
     %
     %   Example:
-    %     K = osqp.LinearSolver.buildKKT(P, A, rho_vec, sigma, n, m);
-    %     solver = osqp.linsys.QDLDLSolver(K);
+    %     K = osqp.solver.LinearSolver.buildKKT(P, A, rho_vec, sigma, n, m);
+    %     solver = osqp.solver.linsys.QDLDLSolver(K);
     %     x = solver \ b;
 
     properties (Access = private)

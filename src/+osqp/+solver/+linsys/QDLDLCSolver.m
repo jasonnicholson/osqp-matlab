@@ -1,4 +1,4 @@
-classdef QDLDLCSolver < osqp.LinearSolver
+classdef QDLDLCSolver < osqp.solver.LinearSolver
     % OSQP.LINSYS.QDLDLCSOLVER  KKT solver using C-MEX QDLDL factorization.
     %
     %   Wraps qdldl_c_factor_mex (compiled C QDLDL) for fast LDL
@@ -7,8 +7,8 @@ classdef QDLDLCSolver < osqp.LinearSolver
     %   Requires qdldl_c_factor_mex MEX file to be on the MATLAB path.
     %
     %   Example:
-    %     K = osqp.LinearSolver.buildKKT(P, A, rho_vec, sigma, n, m);
-    %     solver = osqp.linsys.QDLDLCSolver(K);
+    %     K = osqp.solver.LinearSolver.buildKKT(P, A, rho_vec, sigma, n, m);
+    %     solver = osqp.solver.linsys.QDLDLCSolver(K);
     %     x = solver \ b;
 
     properties (Access = private)

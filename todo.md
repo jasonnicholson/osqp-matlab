@@ -1,7 +1,7 @@
 ## To Do
-[ ] Remove reference to `v1.0.0`. We need a better way to manage version number. Do not hard code and docstrings everywhere.
+[x] Remove reference to `v1.0.0`. We need a better way to manage version number. Do not hard code and docstrings everywhere.
 [ ] This needs so much work. It's inconsistent. 
-    - Constants are not used well.
+    - [x] Constants are not used well. - Handled by extracting properties as doubles directly in configuration.
     - Options are used improperly and not consistent.
 
 
@@ -10,4 +10,4 @@
 [ ] 
 
 ## Questions
-[ ] Are enumerations slow? Does int32 versus double matter? MATLAB prefers double.
+[x] Are enumerations slow? Does int32 versus double matter? MATLAB prefers double. - Resolved: Converted into flat struct for the run loops.

@@ -1,4 +1,4 @@
-classdef StatusType
+classdef StatusType < double
   % OSQP.STATUSTYPE  Solver status codes.
   %   Mirrors osqp_status_type in osqp_api_constants.h.
   %

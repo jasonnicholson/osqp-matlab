@@ -1,4 +1,4 @@
-classdef PolishStatusType
+classdef PolishStatusType < double
   % OSQP.POLISHSTATUSTYPE  Polish status codes.
   %   Mirrors osqp_polish_status_type in osqp_api_constants.h.
   %
