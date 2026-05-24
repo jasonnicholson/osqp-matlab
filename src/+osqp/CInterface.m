@@ -93,8 +93,7 @@ classdef CInterface < handle
 
         function out = solve(obj)
             % SOLVE  Solve the QP. Returns struct with x, y, info.
-            [out.x, out.y, out.prim_inf_cert, out.dual_inf_cert, out.info] = ...
-                osqp_mex('solve', obj.objectHandle);
+            [out.x, out.y, out.prim_inf_cert, out.dual_inf_cert, out.info] = osqp_mex('solve', obj.objectHandle);
         end
 
         function update(obj, varargin)
@@ -105,7 +104,6 @@ classdef CInterface < handle
             %   update('Ax', Ax_new, 'Ax_idx', Ax_idx_new)
             %   update(struct_with_fields)
 
-            INFTY = 1e30;
             allowedFields = {'q', 'l', 'u', 'Px', 'Px_idx', 'Ax', 'Ax_idx'};
 
             if isempty(varargin), return; end
@@ -125,13 +123,13 @@ classdef CInterface < handle
                 error('Unrecognized input field ''%s''', newFields{badIdx(1)});
             end
 
-            try q = double(full(newData.q(:)));         catch, q = [];      end
-            try l = double(full(newData.l(:)));         catch, l = [];      end
-            try u = double(full(newData.u(:)));         catch, u = [];      end
-            try Px = double(full(newData.Px(:)));       catch, Px = [];     end
-            try Px_idx = double(full(newData.Px_idx(:)));catch, Px_idx = []; end
-            try Ax = double(full(newData.Ax(:)));       catch, Ax = [];     end
-            try Ax_idx = double(full(newData.Ax_idx(:)));catch, Ax_idx = []; end
+            try q = double(full(newData.q(:)));                  catch, q = [];         end
+            try l = double(full(newData.l(:)));                    catch, l = [];           end
+            try u = double(full(newData.u(:)));                  catch, u = [];          end
+            try Px = double(full(newData.Px(:)));               catch, Px = [];        end
+            try Px_idx = double(full(newData.Px_idx(:))); catch, Px_idx = []; end
+            try Ax = double(full(newData.Ax(:)));               catch, Ax = [];        end
+            try Ax_idx = double(full(newData.Ax_idx(:))); catch, Ax_idx = []; end
 
             [n, m] = obj.get_dimensions();
 
@@ -147,11 +145,11 @@ classdef CInterface < handle
             if ~isempty(Px_idx), Px_idx = Px_idx - 1; end
             if ~isempty(Ax_idx), Ax_idx = Ax_idx - 1; end
 
-            if ~isempty(u), u = min(u,  INFTY); end
-            if ~isempty(l), l = max(l, -INFTY); end
+            infty = obj.constant('OSQP_INFTY');
+            if ~isempty(u), u = min(u,  infty); end
+            if ~isempty(l), l = max(l, -infty); end
 
-            osqp_mex('update', obj.objectHandle, ...
-                q, l, u, Px, Px_idx, length(Px), Ax, Ax_idx, length(Ax));
+            osqp_mex('update', obj.objectHandle, q, l, u, Px, Px_idx, length(Px), Ax, Ax_idx, length(Ax));
         end
 
         function warm_start(obj, varargin)
