@@ -220,8 +220,7 @@ classdef CInterface < handle
             p = inputParser;
             addRequired(p, 'target_dir', @ischar);
             addParameter(p, 'prefix', '', @ischar);
-            addParameter(p, 'parameters', 'vectors', ...
-                @(x) ischar(validatestring(x, {'vectors', 'matrices'})));
+            addParameter(p, 'parameters', 'vectors', @(x) ischar(validatestring(x, {'vectors', 'matrices'})));
             addParameter(p, 'force_rewrite', false, @islogical);
             addParameter(p, 'float_type', false, @islogical);
             addParameter(p, 'printing_enable', false, @islogical);
