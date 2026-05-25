@@ -47,7 +47,6 @@ function [m, n, P, q, A, l, u] = validateData(P, q, A, l, u, infty)
   if isempty(A)
     assert(isempty(l) && isempty(u), 'If A is unspecified, leave l/u unspecified too.');
   else
-    assert(~isempty(l) || ~isempty(u), 'If A is specified, specify at least one of l/u.');
     if isempty(l)
       l = -inf * ones(size(A, 1), 1);
     end

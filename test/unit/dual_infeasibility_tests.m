@@ -28,7 +28,7 @@ classdef dual_infeasibility_tests < matlab.unittest.TestCase
             res = solver.solve();
 
             testCase.verifyEqual(res.info.status_val, ...
-                osqp.constant.OSQP_DUAL_INFEASIBLE);
+                5);
 
             delete(solver);
         end
@@ -45,7 +45,7 @@ classdef dual_infeasibility_tests < matlab.unittest.TestCase
             res = solver.solve();
 
             testCase.verifyEqual(res.info.status_val, ...
-                osqp.constant.OSQP_DUAL_INFEASIBLE);
+                5);
 
             delete(solver);
         end
@@ -62,8 +62,8 @@ classdef dual_infeasibility_tests < matlab.unittest.TestCase
             res = solver.solve();
 
             testCase.verifyTrue( ...
-                res.info.status_val == osqp.constant.OSQP_PRIMAL_INFEASIBLE || ...
-                res.info.status_val == osqp.constant.OSQP_DUAL_INFEASIBLE);
+                res.info.status_val == 3 || ...
+                res.info.status_val == 5);
 
             delete(solver);
         end

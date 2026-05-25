@@ -60,7 +60,7 @@ classdef solver_cparity_tests < matlab.unittest.TestCase
             % Optimal is x = [0;0] at interior — polish may succeed via
             % unconstrained Cholesky path or return -1
             testCase.verifyTrue(ismember(res.info.status_polish, ...
-                [osqp.constant.OSQP_POLISH_SUCCESS, -1]));
+                [1, -1]));
             testCase.verifyEqual(res.x, [0; 0], 'AbsTol', 1e-5);
         end
 
@@ -84,7 +84,7 @@ classdef solver_cparity_tests < matlab.unittest.TestCase
             % Semi-definite P means the KKT system may be singular;
             % polish may succeed or fail depending on regularization.
             testCase.verifyTrue(ismember(res.info.status_polish, ...
-                [osqp.constant.OSQP_POLISH_SUCCESS, -1]));
+                [1, -1]));
         end
 
         function test_update_vectors_resolve(testCase)
@@ -155,7 +155,7 @@ classdef solver_cparity_tests < matlab.unittest.TestCase
             % LP polishing may or may not succeed depending on
             % the KKT system conditioning.
             testCase.verifyTrue(ismember(res.info.status_polish, ...
-                [osqp.constant.OSQP_POLISH_SUCCESS, -1]));
+                [1, -1]));
         end
 
         function test_update_before_setup_error(testCase)

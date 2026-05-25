@@ -28,7 +28,7 @@ classdef Solver < handle
     %  Settings and state
     % -----------------------------------------------------------------
     properties (Access = private)
-        opts        % osqp.Options
+        opts        % osqp.SolverOptions
 
         % Scaling
         scl         % struct: D, E, Dinv, Einv, c, cinv
@@ -51,7 +51,7 @@ classdef Solver < handle
         constr_type % 0=inequality, 1=equality (m×1)
 
         % Linear system solver
-        kkt_factor  % osqp.LinearSolver subclass
+        kkt_factor  % osqp.solver.LinearSolver subclass
 
         % Flags / timing
         isSetup = false
@@ -61,39 +61,50 @@ classdef Solver < handle
         update_time = 0
         polish_time = 0
 
-        % Cached algorithm constants (populated once during setup)
-        constants          % struct: all constants from osqp.constant + derived values
+        % Cached algorithm constants (provided at setup)
+        constants          % osqp.solver.Constants object
     end
 
     % =====================================================================
     %  Public API
     % =====================================================================
     methods
-        function setup(obj, P, q, A, l, u, options, nameValue)
+        function setup(obj, P, q, A, l, u, varargin)
             % SETUP  Configure solver with problem data.
             %
             %   setup(P, q, A, l, u)
             %   setup(P, q, A, l, u, options)
-            %   setup(P, q, A, l, u, options, 'constants', constants)
+            %   setup(P, q, A, l, u, settings_struct)
+            %   setup(P, q, A, l, u, 'Name', Value, ...)
+            %
+            % Optional:
+            %   'constants', osqp.solver.Constants()
 
             arguments
                 obj
                 P (:,:) {mustBeNumeric}
-                q (:,1) {mustBeNumeric}
+                q {mustBeNumeric}
                 A (:,:) {mustBeNumeric}
-                l (:,1) {mustBeNumeric}
-                u (:,1) {mustBeNumeric}
-                options (1,1) osqp.SolverOptions = osqp.SolverOptions();
-                nameValue.constants (1,1) osqp.solver.Constants = osqp.solver.Constants();
+                l {mustBeNumeric}
+                u {mustBeNumeric}
+            end
+
+            arguments (Repeating)
+                varargin
             end
 
             t_start = tic;
 
             % Save options and constants
-            obj.opts = options;
-            obj.constants = nameValue.constants;
+            [obj.opts, obj.constants] = osqp.Solver.parseSetupInputs(varargin{:});
 
-            [obj.m_, obj.n_, obj.P_triu, obj.q_, obj.A_, obj.l_, obj.u_] = validateData(P, q, A, l, u, obj.constants.OSQP_INFTY);
+            try
+                [obj.m_, obj.n_, obj.P_triu, obj.q_, obj.A_, obj.l_, obj.u_] = validateData(P, q, A, l, u, obj.constants.OSQP_INFTY);
+            catch ME
+                error('OSQP:setup', '%s', ME.message);
+            end
+            n = obj.n_;
+            m = obj.m_;
 
             % --- Convexity check (matching C: LDL-based inertia) ---
             %   C code factors KKT (with P+sigma*I) using QDLDL and
@@ -122,16 +133,16 @@ classdef Solver < handle
             obj.y_ = zeros(m, 1);
 
             % --- Classify constraints ---
-            obj.constr_type = osqp.Solver.classifyConstraints(obj.l_, obj.u_, obj.C_);
+            obj.constr_type = osqp.Solver.classifyConstraints(obj.l_, obj.u_, obj.constants);
 
             % --- Scale problem ---
             [obj.scl, obj.Ps, obj.qs, obj.As, obj.ls, obj.us] = ...
                 osqp.Solver.scaleProblem(obj.P_triu, obj.q_, obj.A_, ...
-                obj.l_, obj.u_, obj.opts, obj.C_);
+                obj.l_, obj.u_, obj.opts, obj.constants);
 
             % --- Build rho vector ---
             [obj.rho_vec, obj.rho_inv_vec] = osqp.Solver.makeRhoVec( ...
-                obj.constr_type, obj.opts.rho, m, obj.C_);
+                obj.constr_type, obj.opts.rho, m, obj.constants);
 
             % --- Factorize KKT ---
             obj.factorizeKKT();
@@ -151,13 +162,14 @@ classdef Solver < handle
             n = obj.n_;
             m = obj.m_;
             s = obj.opts;
-            C = obj.C_;
+            C = obj.constants;
+            S = osqp.Solver.statusCodes();
 
             results = osqp.Solver.emptyResults(n, m, C);
 
             % Non-convex check
             if obj.non_convex
-                results.info.status_val = C.OSQP_NON_CONVEX;
+                results.info.status_val = S.OSQP_NON_CVX;
                 results.info.status     = 'non_convex';
                 results.info.obj_val    = nan;
                 return;
@@ -176,7 +188,7 @@ classdef Solver < handle
                 ys = zeros(m, 1);
             end
 
-            status_val = C.OSQP_UNSOLVED;
+            status_val = S.OSQP_UNSOLVED;
             rho_updates = 0;
             adaptive_rho_interval = 0;
 
@@ -256,7 +268,7 @@ classdef Solver < handle
                     if conv_tl
                         status_val = sv_tl;
                     else
-                        status_val = C.OSQP_TIME_LIMIT_REACHED;
+                        status_val = S.OSQP_TIME_LIMIT_REACHED;
                     end
                     break;
                 end
@@ -290,21 +302,21 @@ classdef Solver < handle
 
             % Post-loop convergence check (C: check_termination after loop)
             %   First exact, then approximate (10x tolerances), then max_iter.
-            if status_val == C.OSQP_UNSOLVED
+            if status_val == S.OSQP_UNSOLVED
                 [~, status_val] = osqp.Solver.checkConvergence( ...
                     xs, zs, ys, xs_prev, ys_prev, ...
                     obj.Ps, obj.qs, obj.As, obj.ls, obj.us, ...
                     n, m, s, obj.scl, C);
                 % If still unsolved, try approximate check (10x tolerances)
                 % matching C code's post-loop check_termination(solver, 1)
-                if status_val == C.OSQP_UNSOLVED
+                if status_val == S.OSQP_UNSOLVED
                     [~, status_val] = osqp.Solver.checkConvergence( ...
                         xs, zs, ys, xs_prev, ys_prev, ...
                         obj.Ps, obj.qs, obj.As, obj.ls, obj.us, ...
                         n, m, s, obj.scl, C, true);  % approximate = true
                 end
-                if status_val == C.OSQP_UNSOLVED
-                    status_val = C.OSQP_MAX_ITER_REACHED;
+                if status_val == S.OSQP_UNSOLVED
+                    status_val = S.OSQP_MAX_ITER_REACHED;
                 end
             end
 
@@ -333,9 +345,9 @@ classdef Solver < handle
             % Build result struct based on termination status
             %   C: store_solution() and update_info()
             solution_present = ismember(status_val, [ ...
-                C.OSQP_SOLVED, ...
-                C.OSQP_SOLVED_INACCURATE, ...
-                C.OSQP_MAX_ITER_REACHED]);
+                S.OSQP_SOLVED, ...
+                S.OSQP_SOLVED_INACCURATE, ...
+                S.OSQP_MAX_ITER_REACHED]);
 
             if solution_present
                 results.x = x_out;
@@ -347,8 +359,8 @@ classdef Solver < handle
                     obj.q_' * x_out;
                 results.info.pri_res = norm(obj.A_ * x_out - z_out, inf);
                 results.info.dua_res = norm(Pfull * x_out + obj.q_ + obj.A_' * y_out, inf);
-            elseif status_val == C.OSQP_PRIMAL_INFEASIBLE || ...
-                    status_val == C.OSQP_PRIMAL_INFEASIBLE_INACCURATE
+                elseif status_val == S.OSQP_PRIMAL_INFEASIBLE || ...
+                    status_val == S.OSQP_PRIMAL_INFEASIBLE_INACCURATE
                 results.x = nan(n, 1);
                 results.y = nan(m, 1);
                 delta_y = obj.scl.E .* (ys - ys_prev);
@@ -360,8 +372,8 @@ classdef Solver < handle
                 results.info.obj_val = inf;
                 results.info.pri_res = inf;
                 results.info.dua_res = inf;
-            elseif status_val == C.OSQP_DUAL_INFEASIBLE || ...
-                    status_val == C.OSQP_DUAL_INFEASIBLE_INACCURATE
+                elseif status_val == S.OSQP_DUAL_INFEASIBLE || ...
+                    status_val == S.OSQP_DUAL_INFEASIBLE_INACCURATE
                 results.x = nan(n, 1);
                 results.y = nan(m, 1);
                 results.prim_inf_cert = nan(m, 1);
@@ -388,7 +400,7 @@ classdef Solver < handle
             %   solves it with iterative refinement, then applies Moreau
             %   decomposition to ensure complementarity.
             results.info.status_polish = 0;
-            if s.polishing && status_val == C.OSQP_SOLVED
+            if s.polishing && status_val == S.OSQP_SOLVED
                 t_polish = tic;
                 results = osqp.Solver.polishSolution(results, ...
                     obj.P_triu, obj.q_, obj.A_, obj.l_, obj.u_, s, C);
@@ -455,18 +467,18 @@ classdef Solver < handle
                     if numel(l_new) ~= obj.m_
                         error('OSQP:update', 'l must have length m=%d', obj.m_);
                     end
-                    obj.l_ = max(l_new, -obj.C_.OSQP_INFTY);
+                    obj.l_ = max(l_new, -obj.constants.OSQP_INFTY);
                 end
                 if isfield(newData, 'u')
                     u_new = double(full(newData.u(:)));
                     if numel(u_new) ~= obj.m_
                         error('OSQP:update', 'u must have length m=%d', obj.m_);
                     end
-                    obj.u_ = min(u_new, obj.C_.OSQP_INFTY);
+                    obj.u_ = min(u_new, obj.constants.OSQP_INFTY);
                 end
-                obj.constr_type = osqp.Solver.classifyConstraints(obj.l_, obj.u_, obj.C_);
+                obj.constr_type = osqp.Solver.classifyConstraints(obj.l_, obj.u_, obj.constants);
                 [obj.rho_vec, obj.rho_inv_vec] = osqp.Solver.makeRhoVec( ...
-                    obj.constr_type, obj.opts.rho, obj.m_, obj.C_);
+                    obj.constr_type, obj.opts.rho, obj.m_, obj.constants);
                 refactor = true;
             end
 
@@ -518,7 +530,7 @@ classdef Solver < handle
             if refactor
                 [obj.scl, obj.Ps, obj.qs, obj.As, obj.ls, obj.us] = ...
                     osqp.Solver.scaleProblem(obj.P_triu, obj.q_, obj.A_, ...
-                    obj.l_, obj.u_, obj.opts, obj.C_);
+                    obj.l_, obj.u_, obj.opts, obj.constants);
                 obj.factorizeKKT();
             else
                 % Only q changed; recompute scaled q
@@ -604,7 +616,7 @@ classdef Solver < handle
                     error('OSQP:update_settings', 'Arguments must be name/value pairs.');
                 end
                 for k = 1:2:numel(varargin)
-                    name = varargin{k};
+                    name = char(varargin{k});
                     if ~obj.opts.isUpdatable(name)
                         error('OSQP:update_settings', ...
                             'Setting ''%s'' cannot be updated after setup.', name);
@@ -616,14 +628,14 @@ classdef Solver < handle
 
             if rho_updated
                 [obj.rho_vec, obj.rho_inv_vec] = osqp.Solver.makeRhoVec( ...
-                    obj.constr_type, obj.opts.rho, obj.m_, obj.C_);
+                    obj.constr_type, obj.opts.rho, obj.m_, obj.constants);
                 obj.factorizeKKT();
             end
         end
 
         function out = current_settings(obj)
-            % CURRENT_SETTINGS  Get the current solver settings as a struct.
-            out = obj.opts.toStruct();
+            % CURRENT_SETTINGS  Get the current solver settings object.
+            out = obj.opts;
         end
 
         function [n, m] = get_dimensions(obj)
@@ -640,28 +652,45 @@ classdef Solver < handle
 
         function factorizeKKT(obj)
             % FACTORIZEKKT  Build and factorize the KKT matrix.
-            K = osqp.LinearSolver.buildKKT( ...
+            K = osqp.solver.LinearSolver.buildKKT( ...
                 obj.Ps, obj.As, obj.rho_vec, obj.opts.sigma, obj.n_, obj.m_);
 
             switch obj.opts.linear_solver
                 case 'matlab_ldl'
                     if isempty(obj.kkt_factor) || ...
-                            ~isa(obj.kkt_factor, 'osqp.linsys.MatlabLDLSolver')
-                        obj.kkt_factor = osqp.linsys.MatlabLDLSolver(K);
+                            ~isa(obj.kkt_factor, 'osqp.solver.linsys.MatlabLDLSolver')
+                        obj.kkt_factor = osqp.solver.linsys.MatlabLDLSolver(K);
                     else
                         obj.kkt_factor.refactorize(K);
                     end
                 case 'qdldl'
                     if isempty(obj.kkt_factor) || ...
-                            ~isa(obj.kkt_factor, 'osqp.linsys.QDLDLSolver')
-                        obj.kkt_factor = osqp.linsys.QDLDLSolver(K);
+                            ~isa(obj.kkt_factor, 'osqp.solver.linsys.QDLDLSolver')
+                        obj.kkt_factor = osqp.solver.linsys.QDLDLSolver(K);
                     else
                         obj.kkt_factor.refactorize(K);
                     end
                 case 'qdldl_c'
+                    if exist('qdldl_c_factor_mex', 'file') == 3
+                        if isempty(obj.kkt_factor) || ...
+                                ~isa(obj.kkt_factor, 'osqp.solver.linsys.QDLDLCSolver')
+                            obj.kkt_factor = osqp.solver.linsys.QDLDLCSolver(K);
+                        else
+                            obj.kkt_factor.refactorize(K);
+                        end
+                    else
+                        if isempty(obj.kkt_factor) || ...
+                                ~isa(obj.kkt_factor, 'osqp.solver.linsys.QDLDLSolver')
+                            obj.kkt_factor = osqp.solver.linsys.QDLDLSolver(K);
+                        else
+                            obj.kkt_factor.refactorize(K);
+                        end
+                    end
+                case {'mkl pardiso', 'cuda pcg'}
+                    % C-backend-only linsys solvers are mapped to qdldl in MATLAB backend.
                     if isempty(obj.kkt_factor) || ...
-                            ~isa(obj.kkt_factor, 'osqp.linsys.QDLDLCSolver')
-                        obj.kkt_factor = osqp.linsys.QDLDLCSolver(K);
+                            ~isa(obj.kkt_factor, 'osqp.solver.linsys.QDLDLSolver')
+                        obj.kkt_factor = osqp.solver.linsys.QDLDLSolver(K);
                     else
                         obj.kkt_factor.refactorize(K);
                     end
@@ -676,6 +705,52 @@ classdef Solver < handle
     %  Static helpers
     % =====================================================================
     methods (Static, Access = private)
+
+        function [opts, constants] = parseSetupInputs(varargin)
+            opts = osqp.SolverOptions();
+            constants = osqp.solver.Constants();
+
+            if isempty(varargin)
+                return;
+            end
+
+            idx = 1;
+            if isa(varargin{1}, 'osqp.SolverOptions')
+                opts = varargin{1};
+                idx = 2;
+            elseif isstruct(varargin{1})
+                opts = osqp.SolverOptions.fromStruct(varargin{1});
+                idx = 2;
+            end
+
+            rest = varargin(idx:end);
+            if isempty(rest)
+                return;
+            end
+
+            if mod(numel(rest), 2) ~= 0
+                error('OSQP:setup', 'Arguments must be name/value pairs.');
+            end
+
+            settings = struct(rest{:});
+            if isfield(settings, 'constants')
+                if ~isa(settings.constants, 'osqp.solver.Constants')
+                    error('OSQP:setup', ...
+                        'constants must be an osqp.solver.Constants object.');
+                end
+                constants = settings.constants;
+                settings = rmfield(settings, 'constants');
+            end
+
+            fnames = fieldnames(settings);
+            for k = 1:numel(fnames)
+                name = fnames{k};
+                if ~isprop(opts, name)
+                    error('OSQP:setup', 'Invalid argument name ''%s''.', name);
+                end
+                opts.(name) = settings.(name);
+            end
+        end
 
         function str = statusStr(val)
             switch val
@@ -732,14 +807,15 @@ classdef Solver < handle
             end
         end
 
-        function r = emptyResults(n, m, C)
+        function r = emptyResults(n, m, ~)
+            S = osqp.Solver.statusCodes();
             r.x = nan(n, 1);
             r.y = nan(m, 1);
             r.prim_inf_cert = nan(m, 1);
             r.dual_inf_cert = nan(n, 1);
             r.info.iter          = 0;
             r.info.status        = 'unsolved';
-            r.info.status_val    = C.OSQP_UNSOLVED;
+            r.info.status_val    = S.OSQP_UNSOLVED;
             r.info.status_polish = 0;
             r.info.obj_val       = nan;
             r.info.pri_res       = nan;
@@ -760,7 +836,7 @@ classdef Solver < handle
             %    0 = inequality (l != u)                 → uses rho
             %    1 = equality  (|l - u| < RHO_TOL)       → uses RHO_EQ * rho
             m = numel(l);
-            thr = C.OSQP_INFTY_THRESH;
+            thr = osqp.Solver.inftyThresh(C);
             ctype = zeros(m, 1);             % default: inequality (0)
             loose = (l <= -thr) & (u >= thr);
             ctype(loose) = -1;
@@ -908,7 +984,8 @@ classdef Solver < handle
             %   When approximate=true, uses 10x tolerances and returns
             %   INACCURATE status variants.
             if nargin < 16, approximate = false; end
-            status_val = C.OSQP_UNSOLVED;
+            S = osqp.Solver.statusCodes();
+            status_val = S.OSQP_UNSOLVED;
             converged  = false;
 
             % Determine whether to unscale
@@ -961,7 +1038,7 @@ classdef Solver < handle
             % --- Check for divergence (non-convexity) ---
             if prim_res > C.OSQP_INFTY || ...
                     dual_res > C.OSQP_INFTY
-                status_val = C.OSQP_NON_CONVEX;
+                status_val = S.OSQP_NON_CVX;
                 converged = true;
                 return;
             end
@@ -1002,9 +1079,9 @@ classdef Solver < handle
             % --- Optimality ---
             if prim_res <= eps_prim && dual_res <= eps_dual
                 if approximate
-                    status_val = C.OSQP_SOLVED_INACCURATE;
+                    status_val = S.OSQP_SOLVED_INACCURATE;
                 else
-                    status_val = C.OSQP_SOLVED;
+                    status_val = S.OSQP_SOLVED;
                 end
                 converged = true;
                 return;
@@ -1018,7 +1095,7 @@ classdef Solver < handle
                 eps_pi = tol_mult * s.eps_prim_inf;
 
                 % Project delta_y onto polar of recession cone of [l, u]
-                INF_THRESH = C.OSQP_INFTY_THRESH;
+                INF_THRESH = osqp.Solver.inftyThresh(C);
                 for i = 1:m
                     li_fin = abs(ls(i)) < INF_THRESH;
                     ui_fin = abs(us(i)) < INF_THRESH;
@@ -1057,9 +1134,9 @@ classdef Solver < handle
                         end
                         if norm(ATdy, inf) < eps_pi * norm_dy
                             if approximate
-                                status_val = C.OSQP_PRIMAL_INFEASIBLE_INACCURATE;
+                                status_val = S.OSQP_PRIMAL_INFEASIBLE_INACCURATE;
                             else
-                                status_val = C.OSQP_PRIMAL_INFEASIBLE;
+                                status_val = S.OSQP_PRIMAL_INFEASIBLE;
                             end
                             converged = true;
                             return;
@@ -1107,9 +1184,9 @@ classdef Solver < handle
                         end
                         if ok
                             if approximate
-                                status_val = C.OSQP_DUAL_INFEASIBLE_INACCURATE;
+                                status_val = S.OSQP_DUAL_INFEASIBLE_INACCURATE;
                             else
-                                status_val = C.OSQP_DUAL_INFEASIBLE;
+                                status_val = S.OSQP_DUAL_INFEASIBLE;
                             end
                             converged = true;
                             return;
@@ -1123,7 +1200,7 @@ classdef Solver < handle
             % Support function of polar recession cone.
             % Used only as a helper — the main primal inf check
             % is now inline in checkConvergence with proper unscaling.
-            INF_THRESH = C.OSQP_INFTY_THRESH;
+            INF_THRESH = osqp.Solver.inftyThresh(C);
             vpos = max(v, 0);
             vneg = min(v, 0);
             val  = 0;
@@ -1138,7 +1215,7 @@ classdef Solver < handle
             % Check whether Adx lies in the recession cone of [l, u].
             % eps is pre-multiplied by norm_delta_x by the caller,
             % matching C code's in_reccone(Adx, l, u, thr, eps*norm).
-            INF_THRESH = C.OSQP_INFTY_THRESH;
+            INF_THRESH = osqp.Solver.inftyThresh(C);
             ok = true;
             for i = 1:numel(l)
                 li = l(i); ui = u(i);
@@ -1328,6 +1405,26 @@ classdef Solver < handle
             catch
                 results.info.status_polish = -1;
             end
+        end
+
+        function S = statusCodes()
+            % STATUSCODES  Numeric status values from enum types.
+            S.OSQP_SOLVED = double(osqp.solver.StatusType.OSQP_SOLVED);
+            S.OSQP_SOLVED_INACCURATE = double(osqp.solver.StatusType.OSQP_SOLVED_INACCURATE);
+            S.OSQP_PRIMAL_INFEASIBLE = double(osqp.solver.StatusType.OSQP_PRIMAL_INFEASIBLE);
+            S.OSQP_PRIMAL_INFEASIBLE_INACCURATE = double(osqp.solver.StatusType.OSQP_PRIMAL_INFEASIBLE_INACCURATE);
+            S.OSQP_DUAL_INFEASIBLE = double(osqp.solver.StatusType.OSQP_DUAL_INFEASIBLE);
+            S.OSQP_DUAL_INFEASIBLE_INACCURATE = double(osqp.solver.StatusType.OSQP_DUAL_INFEASIBLE_INACCURATE);
+            S.OSQP_MAX_ITER_REACHED = double(osqp.solver.StatusType.OSQP_MAX_ITER_REACHED);
+            S.OSQP_TIME_LIMIT_REACHED = double(osqp.solver.StatusType.OSQP_TIME_LIMIT_REACHED);
+            S.OSQP_NON_CVX = double(osqp.solver.StatusType.OSQP_NON_CVX);
+            S.OSQP_SIGINT = double(osqp.solver.StatusType.OSQP_SIGINT);
+            S.OSQP_UNSOLVED = double(osqp.solver.StatusType.OSQP_UNSOLVED);
+        end
+
+        function thr = inftyThresh(C)
+            % INFTYTHRESH  Derived infinity threshold matching C behavior.
+            thr = C.OSQP_INFTY * 1e-10;
         end
 
     end % methods (static, private)

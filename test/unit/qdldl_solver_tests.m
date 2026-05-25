@@ -40,11 +40,11 @@ classdef qdldl_solver_tests < matlab.unittest.TestCase %#ok<*PROP>
     methods (Test)
         function test_qdldl_solver_basic(testCase)
             % QDLDLSolver can construct, solve, and produce correct results.
-            K = osqp.LinearSolver.buildKKT( ...
+            K = osqp.solver.LinearSolver.buildKKT( ...
                 testCase.P, testCase.A, ones(testCase.m, 1), 1e-6, ...
                 testCase.n, testCase.m);
-            solver = osqp.linsys.QDLDLSolver(K);
-            testCase.verifyTrue(isa(solver, 'osqp.linsys.QDLDLSolver'));
+            solver = osqp.solver.linsys.QDLDLSolver(K);
+            testCase.verifyTrue(isa(solver, 'osqp.solver.linsys.QDLDLSolver'));
 
             b = ones(testCase.n + testCase.m, 1);
             x = solver \ b;
@@ -57,13 +57,13 @@ classdef qdldl_solver_tests < matlab.unittest.TestCase %#ok<*PROP>
 
         function test_qdldl_solver_refactorize(testCase)
             % refactorize rebuilds the factorization with new K.
-            K = osqp.LinearSolver.buildKKT( ...
+            K = osqp.solver.LinearSolver.buildKKT( ...
                 testCase.P, testCase.A, ones(testCase.m, 1), 1e-6, ...
                 testCase.n, testCase.m);
-            solver = osqp.linsys.QDLDLSolver(K);
+            solver = osqp.solver.linsys.QDLDLSolver(K);
 
             % Modify rho and refactorize
-            K2 = osqp.LinearSolver.buildKKT( ...
+            K2 = osqp.solver.LinearSolver.buildKKT( ...
                 testCase.P, testCase.A, 2*ones(testCase.m, 1), 1e-6, ...
                 testCase.n, testCase.m);
             solver.refactorize(K2);

@@ -1,5 +1,5 @@
 classdef linsys_tests < matlab.unittest.TestCase
-    % LINSYS_TESTS  Unit tests for osqp.LinearSolver and backends.
+    % LINSYS_TESTS  Unit tests for osqp.solver.LinearSolver and backends.
 
     properties (TestParameter)
         % Test with both small and medium problems
@@ -10,7 +10,7 @@ classdef linsys_tests < matlab.unittest.TestCase
         function testBuildKKT(testCase)
             % Verify KKT assembly: upper triangular, correct size
             [P, A, rho_vec, sigma, n, m] = linsys_tests.makeQP(4);
-            K = osqp.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, m);
+            K = osqp.solver.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, m);
             testCase.verifyTrue(istriu(K), ...
                 'KKT matrix must be upper triangular');
             testCase.verifySize(K, [n+m, n+m]);
@@ -23,11 +23,11 @@ classdef linsys_tests < matlab.unittest.TestCase
         function testMatlabLDLSolverSolve(testCase, problemSize)
             n = problemSize;
             [P, A, rho_vec, sigma, ~, m] = linsys_tests.makeQP(n);
-            K = osqp.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, m);
+            K = osqp.solver.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, m);
             Kfull = K + K' - diag(diag(K));
             b = randn(n + m, 1);
 
-            solver = osqp.linsys.MatlabLDLSolver(K);
+            solver = osqp.solver.linsys.MatlabLDLSolver(K);
             x = solver.solve(b);
             x_ref = Kfull \ b;
             testCase.verifyEqual(x, x_ref, 'AbsTol', 1e-10, ...
@@ -37,11 +37,11 @@ classdef linsys_tests < matlab.unittest.TestCase
         function testMatlabLDLSolverBackslash(testCase, problemSize)
             n = problemSize;
             [P, A, rho_vec, sigma, ~, m] = linsys_tests.makeQP(n);
-            K = osqp.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, m);
+            K = osqp.solver.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, m);
             Kfull = K + K' - diag(diag(K));
             b = randn(n + m, 1);
 
-            solver = osqp.linsys.MatlabLDLSolver(K);
+            solver = osqp.solver.linsys.MatlabLDLSolver(K);
             x = solver \ b;
             x_ref = Kfull \ b;
             testCase.verifyEqual(x, x_ref, 'AbsTol', 1e-10, ...
@@ -51,12 +51,12 @@ classdef linsys_tests < matlab.unittest.TestCase
         function testMatlabLDLSolverRefactorize(testCase)
             n = 4;
             [P, A, rho_vec, sigma, ~, m] = linsys_tests.makeQP(n);
-            K1 = osqp.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, m);
-            solver = osqp.linsys.MatlabLDLSolver(K1);
+            K1 = osqp.solver.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, m);
+            solver = osqp.solver.linsys.MatlabLDLSolver(K1);
 
             % Change rho and refactorize
             rho_vec2 = rho_vec * 2;
-            K2 = osqp.LinearSolver.buildKKT(triu(P), A, rho_vec2, sigma, n, m);
+            K2 = osqp.solver.LinearSolver.buildKKT(triu(P), A, rho_vec2, sigma, n, m);
             K2full = K2 + K2' - diag(diag(K2));
             solver.refactorize(K2);
 
@@ -72,7 +72,7 @@ classdef linsys_tests < matlab.unittest.TestCase
             % Verify decomposition handles it correctly.
             n = 5;
             [P, A, rho_vec, sigma, ~, m] = linsys_tests.makeQP(n);
-            K = osqp.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, m);
+            K = osqp.solver.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, m);
             Kfull = K + K' - diag(diag(K));
 
             % Verify Kfull is indeed indefinite
@@ -80,7 +80,7 @@ classdef linsys_tests < matlab.unittest.TestCase
             testCase.verifyTrue(any(eigvals < 0) && any(eigvals > 0), ...
                 'KKT matrix should be indefinite');
 
-            solver = osqp.linsys.MatlabLDLSolver(K);
+            solver = osqp.solver.linsys.MatlabLDLSolver(K);
             b = randn(n + m, 1);
             x = solver.solve(b);
             testCase.verifyEqual(Kfull * x, b, 'AbsTol', 1e-9, ...
@@ -94,10 +94,10 @@ classdef linsys_tests < matlab.unittest.TestCase
             A = sparse(0, n);
             rho_vec = zeros(0, 1);
             sigma = 1e-6;
-            K = osqp.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, 0);
+            K = osqp.solver.LinearSolver.buildKKT(triu(P), A, rho_vec, sigma, n, 0);
             testCase.verifySize(K, [n, n]);
 
-            solver = osqp.linsys.MatlabLDLSolver(K);
+            solver = osqp.solver.linsys.MatlabLDLSolver(K);
             b = randn(n, 1);
             x = solver.solve(b);
             Kfull = K + K' - diag(diag(K));

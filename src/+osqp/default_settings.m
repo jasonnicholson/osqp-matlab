@@ -1,7 +1,7 @@
 function out = default_settings()
-% OSQP.DEFAULT_SETTINGS  Return the default OSQP settings as an Options object.
+% OSQP.DEFAULT_SETTINGS  Return the default OSQP settings as a SolverOptions object.
 %
 %   opts = osqp.default_settings()
 
-    out = osqp.Options();
+    out = osqp.SolverOptions();
 end

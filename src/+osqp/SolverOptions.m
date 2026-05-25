@@ -62,7 +62,7 @@ classdef SolverOptions
     % -----------------------------------------------------------------
     properties
         linear_solver (1,:) char {mustBeMember(linear_solver, ...
-            {'matlab_ldl','qdldl','qdldl_c'})} = 'qdldl_c'
+            {'matlab_ldl','qdldl','qdldl_c','mkl pardiso','cuda pcg'})} = 'qdldl'
     end
 
     % -----------------------------------------------------------------
@@ -141,7 +141,7 @@ classdef SolverOptions
                 ~
                 name (1,:) char
             end
-            tf = ismember(name, osqp.Options.UPDATABLE_SETTINGS);
+            tf = ismember(name, osqp.SolverOptions.UPDATABLE_SETTINGS);
         end
 
         function tf = isSetupOnly(~, name)
@@ -150,7 +150,7 @@ classdef SolverOptions
                 ~
                 name (1,:) char
             end
-            tf = ismember(name, osqp.Options.SETUP_ONLY_SETTINGS);
+            tf = ismember(name, osqp.SolverOptions.SETUP_ONLY_SETTINGS);
         end
     end
 
@@ -160,7 +160,7 @@ classdef SolverOptions
             arguments
                 s (1,1) struct
             end
-            obj = osqp.Options();
+            obj = osqp.SolverOptions();
             fnames = fieldnames(s);
             mc = metaclass(obj);
             propNames = {mc.PropertyList.Name};

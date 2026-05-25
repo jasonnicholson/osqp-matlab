@@ -57,7 +57,7 @@ try
     solver = newSolver(); solver.setup(P, q, A, l, u, basic_opts{:});
     solver.update_settings('max_iter', 80);
     res = solver.solve();
-    assert(res.info.status_val == osqp.constant.OSQP_MAX_ITER_REACHED);
+    assert(res.info.status_val == 7);
     fprintf('  test_max_iter: PASS\n'); npass = npass + 1;
 catch e
     fprintf('  test_max_iter: FAIL (%s)\n', e.message); nfail = nfail + 1;
@@ -219,7 +219,7 @@ try
     solver.setup(P_pi, q_pi, A_pi, l_pi, u_pi, 'verbose', false, ...
         'eps_prim_inf', 1e-4, ML{:});
     res = solver.solve();
-    assert(res.info.status_val == osqp.constant.OSQP_PRIMAL_INFEASIBLE);
+    assert(res.info.status_val == 3);
     fprintf('  test_primal_infeasibility: PASS\n'); npass = npass + 1;
 catch e
     fprintf('  test_primal_infeasibility: FAIL (%s)\n', e.message); nfail = nfail + 1;
@@ -241,7 +241,7 @@ try
     solver.setup(P_di, q_di, A_di, l_di, u_di, 'verbose', false, ...
         'eps_dual_inf', 1e-4, ML{:});
     res = solver.solve();
-    assert(res.info.status_val == osqp.constant.OSQP_DUAL_INFEASIBLE);
+    assert(res.info.status_val == 5);
     fprintf('  test_dual_infeasibility: PASS\n'); npass = npass + 1;
 catch e
     fprintf('  test_dual_infeasibility: FAIL (%s)\n', e.message); nfail = nfail + 1;
@@ -467,8 +467,8 @@ try
     solver = newSolver();
     solver.setup(P_lp, q_lp, A_lp, l_lp, u_lp, 'verbose', false, ML{:});
     res = solver.solve();
-    assert(res.info.status_val == osqp.constant.OSQP_SOLVED || ...
-           res.info.status_val == osqp.constant.OSQP_SOLVED_INACCURATE);
+        assert(res.info.status_val == 1 || ...
+            res.info.status_val == 2);
     fprintf('  test_lp: PASS\n'); npass = npass + 1;
 catch e
     fprintf('  test_lp: FAIL (%s)\n', e.message); nfail = nfail + 1;

@@ -29,7 +29,7 @@ classdef polishing_tests < matlab.unittest.TestCase
             res = solver.solve();
 
             testCase.verifyEqual(res.info.status_polish, ...
-                osqp.constant.OSQP_POLISH_SUCCESS);
+                1);
             testCase.verifyEqual(res.x, x_ref, 'AbsTol', testCase.tol);
             testCase.verifyEqual(res.y, y_ref, 'AbsTol', testCase.tol);
             testCase.verifyEqual(res.info.obj_val, obj_ref, 'AbsTol', testCase.tol);
@@ -83,7 +83,7 @@ classdef polishing_tests < matlab.unittest.TestCase
             res = solver.solve();
 
             testCase.verifyEqual(res.info.status_polish, ...
-                osqp.constant.OSQP_POLISH_SUCCESS);
+                1);
             testCase.verifyEqual(res.x, x_ref, 'AbsTol', testCase.tol);
             testCase.verifyEqual(res.y, y_ref, 'AbsTol', testCase.tol);
             testCase.verifyEqual(res.info.obj_val, obj_ref, 'AbsTol', testCase.tol);

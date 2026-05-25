@@ -152,8 +152,8 @@ classdef solver_coverage_tests < matlab.unittest.TestCase %#ok<*PROP>
                 'eps_abs', 1e-15, 'eps_rel', 1e-15);
             res = solver.solve();
             testCase.verifyTrue(ismember(res.info.status_val, ...
-                [osqp.constant.OSQP_MAX_ITER_REACHED, ...
-                 osqp.constant.OSQP_SOLVED_INACCURATE]));
+                [7, ...
+                 2]));
             testCase.verifyLessThanOrEqual(res.info.iter, 2);
             % Should still have a valid solution
             testCase.verifyEqual(numel(res.x), testCase.n);
@@ -180,9 +180,9 @@ classdef solver_coverage_tests < matlab.unittest.TestCase %#ok<*PROP>
                 'check_termination', 0);  % Disable periodic check to force time limit
             res = solver.solve();
             testCase.verifyTrue(ismember(res.info.status_val, ...
-                [osqp.constant.OSQP_TIME_LIMIT_REACHED, ...
-                 osqp.constant.OSQP_SOLVED, ...
-                 osqp.constant.OSQP_SOLVED_INACCURATE]));
+                [8, ...
+                 1, ...
+                 2]));
         end
 
         %% Warm start edge cases
@@ -263,7 +263,7 @@ classdef solver_coverage_tests < matlab.unittest.TestCase %#ok<*PROP>
                 'linear_solver', 'matlab_ldl', 'sigma', 100);
             res = solver.solve();
             testCase.verifyEqual(res.info.status_val, ...
-                osqp.constant.OSQP_NON_CONVEX);
+                9);
             testCase.verifyEqual(res.info.status, 'non_convex');
             testCase.verifyTrue(isnan(res.info.obj_val));
         end
@@ -295,8 +295,8 @@ classdef solver_coverage_tests < matlab.unittest.TestCase %#ok<*PROP>
                 'eps_dual_inf', 1e-4, 'max_iter', 4000);
             res = solver.solve();
             testCase.verifyTrue(ismember(res.info.status_val, ...
-                [osqp.constant.OSQP_DUAL_INFEASIBLE, ...
-                 osqp.constant.OSQP_DUAL_INFEASIBLE_INACCURATE]));
+                [5, ...
+                 6]));
             testCase.verifyEqual(res.info.obj_val, -inf);
             testCase.verifyTrue(all(isnan(res.x)));
         end

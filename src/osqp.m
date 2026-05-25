@@ -16,7 +16,7 @@ function solver = osqp(args)
 %   CInterface additionally supports: codegen, adjoint_derivative_*,
 %   has_capability, version, constant, capabilities.
 %
-%   See also: osqp.CInterface, osqp.Solver, osqp.Options
+%   See also: osqp.CInterface, osqp.Solver, osqp.SolverOptions
 
     arguments
         args.backend (1,:) char {mustBeMember(args.backend, {'c', 'matlab'})} = 'c';

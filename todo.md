@@ -3,7 +3,7 @@
 [ ] This needs so much work. It's inconsistent. 
     - [x] Constants are not used well. - Handled by extracting properties as doubles directly in configuration.
     - Options are used improperly and not consistent.
-
+[x] Update README.md structure of project.
 
 ## To Do Later
 [ ] Compile on different OS's. I don't trust that this make script is going to work across all platforms. Focus on Linux and Windows. 2020a to 2026a. 

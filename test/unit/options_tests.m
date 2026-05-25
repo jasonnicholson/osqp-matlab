@@ -1,9 +1,9 @@
 classdef options_tests < matlab.unittest.TestCase
-    % OPTIONS_TESTS  Unit tests for osqp.Options
+    % OPTIONS_TESTS  Unit tests for osqp.SolverOptions
 
     methods (Test)
         function testDefaultConstruction(testCase)
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             testCase.verifyEqual(opts.rho, 0.1);
             testCase.verifyEqual(opts.sigma, 1e-6);
             testCase.verifyEqual(opts.alpha, 1.6);
@@ -24,11 +24,11 @@ classdef options_tests < matlab.unittest.TestCase
             testCase.verifyEqual(opts.warm_starting, true);
             testCase.verifyEqual(opts.check_termination, 25);
             testCase.verifyEqual(opts.time_limit, 0);
-            testCase.verifyEqual(opts.linear_solver, 'qdldl_c');
+            testCase.verifyEqual(opts.linear_solver, 'qdldl');
         end
 
         function testPropertyModification(testCase)
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             opts.max_iter = 1000;
             testCase.verifyEqual(opts.max_iter, 1000);
             opts.rho = 0.5;
@@ -40,20 +40,20 @@ classdef options_tests < matlab.unittest.TestCase
         end
 
         function testToStruct(testCase)
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             opts.max_iter = 500;
             s = opts.toStruct();
             testCase.verifyTrue(isstruct(s));
             testCase.verifyEqual(s.max_iter, 500);
             testCase.verifyEqual(s.rho, 0.1);
-            testCase.verifyEqual(s.linear_solver, 'qdldl_c');
+            testCase.verifyEqual(s.linear_solver, 'qdldl');
         end
 
         function testFromStruct(testCase)
             s.rho = 0.5;
             s.max_iter = 2000;
             s.linear_solver = 'qdldl';
-            opts = osqp.Options.fromStruct(s);
+            opts = osqp.SolverOptions.fromStruct(s);
             testCase.verifyEqual(opts.rho, 0.5);
             testCase.verifyEqual(opts.max_iter, 2000);
             testCase.verifyEqual(opts.linear_solver, 'qdldl');
@@ -62,25 +62,25 @@ classdef options_tests < matlab.unittest.TestCase
         end
 
         function testToStructRoundTrip(testCase)
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             opts.rho = 0.3;
             opts.alpha = 1.2;
             opts.max_iter = 100;
             s = opts.toStruct();
-            opts2 = osqp.Options.fromStruct(s);
+            opts2 = osqp.SolverOptions.fromStruct(s);
             testCase.verifyEqual(opts2.rho, opts.rho);
             testCase.verifyEqual(opts2.alpha, opts.alpha);
             testCase.verifyEqual(opts2.max_iter, opts.max_iter);
         end
 
         function testValidationRhoPositive(testCase)
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             testCase.verifyError(@() setfield_helper(opts, 'rho', -1), ...
                 'MATLAB:validators:mustBePositive');
         end
 
         function testValidationAlphaRange(testCase)
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             testCase.verifyError(@() setfield_helper(opts, 'alpha', 3), ...
                 'MATLAB:validators:mustBeInRange');
             testCase.verifyError(@() setfield_helper(opts, 'alpha', -0.5), ...
@@ -88,25 +88,25 @@ classdef options_tests < matlab.unittest.TestCase
         end
 
         function testValidationLinearSolver(testCase)
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             testCase.verifyError(@() setfield_helper(opts, 'linear_solver', 'bad_solver'), ...
                 'MATLAB:validators:mustBeMember');
         end
 
         function testValidationMaxIterInteger(testCase)
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             testCase.verifyError(@() setfield_helper(opts, 'max_iter', 3.5), ...
                 'MATLAB:validators:mustBeInteger');
         end
 
         function testValidationEpsNonnegative(testCase)
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             testCase.verifyError(@() setfield_helper(opts, 'eps_abs', -0.01), ...
                 'MATLAB:validators:mustBeNonnegative');
         end
 
         function testUpdatableClassification(testCase)
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             testCase.verifyTrue(opts.isUpdatable('max_iter'));
             testCase.verifyTrue(opts.isUpdatable('rho'));
             testCase.verifyTrue(opts.isUpdatable('alpha'));
@@ -116,7 +116,7 @@ classdef options_tests < matlab.unittest.TestCase
         end
 
         function testSetupOnlyClassification(testCase)
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             testCase.verifyTrue(opts.isSetupOnly('sigma'));
             testCase.verifyTrue(opts.isSetupOnly('scaling'));
             testCase.verifyTrue(opts.isSetupOnly('linear_solver'));
@@ -126,7 +126,7 @@ classdef options_tests < matlab.unittest.TestCase
 
         function testUpdatableAndSetupOnlyAreMutuallyExclusive(testCase)
             % Every non-constant property should be in exactly one list
-            opts = osqp.Options();
+            opts = osqp.SolverOptions();
             mc = metaclass(opts);
             for k = 1:numel(mc.PropertyList)
                 p = mc.PropertyList(k);

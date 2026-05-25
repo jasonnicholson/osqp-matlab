@@ -182,8 +182,8 @@ classdef solver_tests < matlab.unittest.TestCase %#ok<*PROP>
         end
 
         function test_options_object(testCase)
-            % Pass an osqp.Options object to setup.
-            opts = osqp.Options();
+            % Pass an osqp.SolverOptions object to setup.
+            opts = osqp.SolverOptions();
             opts.verbose = false;
             opts.max_iter = 2000;
             opts.eps_abs = 1e-8;

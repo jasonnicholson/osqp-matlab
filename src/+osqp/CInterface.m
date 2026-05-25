@@ -37,9 +37,12 @@ classdef CInterface < handle
         end
 
         function out = default_settings()
-            % DEFAULT_SETTINGS  Get the default settings structure from C.
-            out = osqp_mex('default_settings', 'static');
-            out.linsys_solver = osqp.CInterface.linsys_solver_to_string(out.linsys_solver);
+            % DEFAULT_SETTINGS  Get default settings as osqp.SolverOptions.
+            s = osqp_mex('default_settings', 'static');
+            if isfield(s, 'linsys_solver')
+                s.linear_solver = osqp.CInterface.linsys_solver_to_string(s.linsys_solver);
+            end
+            out = osqp.SolverOptions.fromStruct(s);
         end
 
         function out = constant(constant_name)
@@ -179,9 +182,12 @@ classdef CInterface < handle
         end
 
         function out = current_settings(obj)
-            % CURRENT_SETTINGS  Get the current settings structure from C.
-            out = osqp_mex('current_settings', obj.objectHandle);
-            out.linsys_solver = osqp.CInterface.linsys_solver_to_string(out.linsys_solver);
+            % CURRENT_SETTINGS  Get current settings as osqp.SolverOptions.
+            s = osqp_mex('current_settings', obj.objectHandle);
+            if isfield(s, 'linsys_solver')
+                s.linear_solver = osqp.CInterface.linsys_solver_to_string(s.linsys_solver);
+            end
+            out = osqp.SolverOptions.fromStruct(s);
         end
 
         function update_settings(obj, varargin)
@@ -333,24 +339,53 @@ classdef CInterface < handle
                 return;
             end
 
-            if isstruct(varargin{1})
+            if isa(varargin{1}, 'osqp.SolverOptions')
+                % Start from MEX defaults and only apply fields changed
+                % relative to SolverOptions class defaults.
+                mexDefaults = osqp_mex('default_settings', 'static');
+                userSettings = varargin{1}.toStruct();
+                classDefaults = osqp.SolverOptions().toStruct();
+
+                theSettings = mexDefaults;
+                fn = fieldnames(userSettings);
+                for k = 1:numel(fn)
+                    name = fn{k};
+                    if isfield(classDefaults, name) && ...
+                            ~isequaln(userSettings.(name), classDefaults.(name))
+                        theSettings.(name) = userSettings.(name);
+                    end
+                end
+            elseif isstruct(varargin{1})
                 theSettings = varargin{1};
             else
                 theSettings = struct(varargin{:});
             end
 
-            % Convert string linsys_solver to integer for MEX
-            if isfield(theSettings, 'linsys_solver')
+            % Accept MATLAB-style linear_solver and map to MEX linsys_solver enum.
+            if isfield(theSettings, 'linear_solver')
+                theSettings.linsys_solver = ...
+                    osqp.CInterface.string_to_linsys_solver(theSettings.linear_solver);
+                theSettings = rmfield(theSettings, 'linear_solver');
+            elseif isfield(theSettings, 'linsys_solver') && ...
+                    (ischar(theSettings.linsys_solver) || isstring(theSettings.linsys_solver))
                 theSettings.linsys_solver = ...
                     osqp.CInterface.string_to_linsys_solver(theSettings.linsys_solver);
             end
 
-            % Strip MATLAB-only fields
-            matlabOnly = {'linear_solver'};
+            % Strip MATLAB-only convenience fields
+            matlabOnly = {'constants'};
             for k = 1:numel(matlabOnly)
                 if isfield(theSettings, matlabOnly{k})
                     theSettings = rmfield(theSettings, matlabOnly{k});
                 end
+            end
+
+            % Keep only fields supported by the MEX settings struct.
+            supported = fieldnames(osqp_mex('default_settings', 'static'));
+            fn = fieldnames(theSettings);
+            drop = fn(~ismember(fn, supported));
+            if ~isempty(drop)
+                theSettings = rmfield(theSettings, drop);
             end
 
             if ~isSetup
@@ -383,7 +418,7 @@ classdef CInterface < handle
 
         function val = string_to_linsys_solver(str)
             switch lower(str)
-                case 'qdldl',      val = 0;
+                case {'qdldl', 'qdldl_c'}, val = 0;
                 case 'mkl pardiso', val = 1;
                 case 'cuda pcg',   val = 2;
                 otherwise

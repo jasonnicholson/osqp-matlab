@@ -1,8 +1,10 @@
-function result = run_osqp_unit_tests(generateCoverage)
-  % RUN_OSQP_UNIT_TESTS  Run OSQP MATLAB unit tests with optional HTML coverage report.
+function result = run_osqp_unit_tests(generateCoverage, scope)
+  % RUN_OSQP_UNIT_TESTS  Run OSQP unit tests with optional backend scope and coverage.
   %
-  %   result = run_osqp_tests()          — run all tests, no coverage
-  %   result = run_osqp_tests(true)      — run all tests + HTML coverage report
+  %   result = run_osqp_unit_tests()                    % all unit tests, with coverage
+  %   result = run_osqp_unit_tests(true)                % all unit tests, with coverage
+  %   result = run_osqp_unit_tests(false, 'cinterface') % CInterface-focused tests only
+  %   result = run_osqp_unit_tests(false, 'matlab')     % pure-MATLAB solver tests only
   %
   %   The coverage report (when enabled) is written to coverage_report/ and
   %   covers osqp.m plus everything under codegen/ and utils/.
@@ -10,6 +12,7 @@ function result = run_osqp_unit_tests(generateCoverage)
 
   arguments
     generateCoverage (1,1) logical = true;
+    scope (1,:) char {mustBeMember(scope, {'all', 'cinterface', 'matlab'})} = 'all';
   end
 
   import matlab.unittest.TestSuite
@@ -27,8 +30,42 @@ function result = run_osqp_unit_tests(generateCoverage)
 
   unittest_dir = fullfile(osqp_root, 'test', 'unit');
 
-  % Build test suite from the unittests folder
-  suite = TestSuite.fromFolder(unittest_dir);
+  cinterfaceTests = { ...
+    'basic_tests.m', ...
+    'codegen_mat_tests.m', ...
+    'codegen_vec_tests.m', ...
+    'derivative_tests.m', ...
+    'dual_infeasibility_tests.m', ...
+    'feasibility_tests.m', ...
+    'non_cvx_tests.m', ...
+    'polishing_tests.m', ...
+    'primal_infeasibility_tests.m', ...
+    'unconstrained_tests.m', ...
+    'update_matrices_tests.m', ...
+    'utility_tests.m', ...
+    'warm_start_tests.m'};
+
+  matlabTests = { ...
+    'linsys_tests.m', ...
+    'options_tests.m', ...
+    'qdldl_solver_tests.m', ...
+    'solver_cparity_tests.m', ...
+    'solver_coverage_tests.m', ...
+    'solver_tests.m'};
+
+  switch scope
+    case 'cinterface'
+      selected = cinterfaceTests;
+    case 'matlab'
+      selected = matlabTests;
+    otherwise
+      selected = [cinterfaceTests, matlabTests];
+  end
+
+  suite = matlab.unittest.Test.empty;
+  for k = 1:numel(selected)
+    suite = [suite, TestSuite.fromFile(fullfile(unittest_dir, selected{k}))]; %#ok<AGROW>
+  end
 
   if generateCoverage
 

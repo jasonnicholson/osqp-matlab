@@ -173,6 +173,8 @@ Code generation options: `'parameters'` (`'vectors'` or `'matrices'`), `'force_r
 setupOSQPdevelopmentPath          % if not already done
 run_osqp_unit_tests               % run all unit tests
 run_osqp_unit_tests(true)         % run tests with HTML coverage report
+run_osqp_cinterface_unit_tests    % run CInterface-focused unit tests only
+run_osqp_matlab_unit_tests        % run pure-MATLAB solver unit tests only
 ```
 
 ## Running Examples
@@ -191,30 +193,56 @@ osqp-matlab/
 │   ├── osqp.m                   % factory function (selects backend)
 │   ├── make_osqp.m              % build script for MEX interface
 │   ├── osqp_mex.cpp/.hpp        % MEX gateway (C ↔ MATLAB bridge)
-│   ├── MATLABLDLSolver.m        % LDL factorization for pure-MATLAB backend
 │   ├── CMakeLists.txt           % CMake build configuration
 │   ├── +osqp/                   % OSQP package namespace
-│   │   ├── CInterface.m         % C MEX backend (wraps osqp_mex)
-│   │   ├── Solver.m             % Pure-MATLAB ADMM solver
-│   │   ├── Options.m            % Unified settings management
-│   │   ├── LinearSolver.m       % Abstract linear solver interface
-│   │   ├── capabilities.m       % Capability query
-│   │   ├── constant.m           % Status/capability constants
-│   │   ├── default_settings.m   % Default settings structure
-│   │   ├── version.m            % Version string
-│   │   └── +linsys/             % Linear solver implementations
-│   │       ├── MatlabLDLSolver.m    % MATLAB LDL backend
-│   │       ├── QDLDLSolver.m        % QDLDL (MATLAB) backend
-│   │       └── QDLDLCSolver.m       % QDLDL (C MEX) backend
+│   │   ├── CInterface.m         % C backend wrapper over osqp_mex
+│   │   ├── Solver.m             % Pure-MATLAB ADMM backend
+│   │   ├── SolverOptions.m      % Shared options object (both backends)
+│   │   ├── capabilities.m       % C backend capabilities query
+│   │   ├── default_settings.m   % Package-level default settings
+│   │   ├── version.m            % OSQP version helper
+│   │   ├── private/             % Shared validation/helpers (e.g., validateData)
+│   │   └── +solver/             % MATLAB solver internals
+│   │       ├── Constants.m      % Algorithm constants for MATLAB backend
+│   │       ├── LinearSolver.m   % KKT assembly / abstract linear solver utilities
+│   │       ├── StatusType.m     % Status enums for MATLAB backend
+│   │       ├── ErrorType.m      % Error enums for MATLAB backend
+│   │       ├── LinSysSolverType.m   % Linear solver enum definitions
+│   │       ├── PrecondType.m    % Preconditioner enum definitions
+│   │       ├── PolishStatusType.m   % Polishing status enums
+│   │       └── +linsys/         % MATLAB backend linear solver implementations
+│   │           ├── MatlabLDLSolver.m
+│   │           ├── QDLDLSolver.m
+│   │           └── QDLDLCSolver.m
 │   └── codegen/                 % Code generation support
 ├── examples/                    % Example scripts
 ├── test/
+│   ├── run_osqp_unit_tests.m            % all tests or backend-scoped tests
+│   ├── run_osqp_cinterface_unit_tests.m % CInterface-focused unit suite
+│   ├── run_osqp_matlab_unit_tests.m     % pure-MATLAB unit suite
 │   ├── unit/                    % Unit test suite (matlab.unittest)
+│   │   ├── basic_tests.m, ...   % CInterface-focused tests
+│   │   └── solver_tests.m, ...  % MATLAB backend tests
 │   ├── integration/             % Integration tests (script-based)
 │   └── mocks/                   % Test doubles
 ├── utils/                       % Development utilities
 └── build/                       % CMake build output (auto-generated)
 ```
+
+### Backend-Oriented Layout
+
+- CInterface backend (default via `osqp()`):
+	- Entry point: `src/+osqp/CInterface.m`
+	- Native bridge: `src/osqp_mex.cpp`, `src/osqp_mex.hpp`, `src/make_osqp.m`
+	- C-only APIs: codegen, adjoint derivatives, capability/constant queries
+- Pure-MATLAB backend (via `osqp(backend="matlab")`):
+	- Entry point: `src/+osqp/Solver.m`
+	- Core internals: `src/+osqp/+solver/*`
+	- Linear solvers: `src/+osqp/+solver/+linsys/*`
+- Shared across both backends:
+	- Factory: `src/osqp.m`
+	- Settings model: `src/+osqp/SolverOptions.m`
+	- Common data validation: `src/+osqp/private/validateData.m`
 
 ## Migration from v0.6.x
 
