@@ -7,6 +7,10 @@ I forked this off from the official [OSQP-MATLAB](https://github.com/osqp/osqp-m
 
 MATLAB wrapper for [OSQP](https://osqp.org/), the Operator Splitting QP Solver and a pure-MATLAB implementation for environments without a C compiler.
 
+## Roadmap
+
+Project roadmap: [docs/roadmap.md](docs/roadmap.md)
+
 There are two backends available:
 `solver = osqp(backend='c')`
 `solver = osqp(backend='matlab')`
