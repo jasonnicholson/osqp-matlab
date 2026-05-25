@@ -29,14 +29,21 @@ solver = osqp;
 solver.setup(P, q, A, l, u, 'verbose', false);
 res = solver.solve();
 
-if res.info.status_val == osqp.constant.OSQP_SOLVED || ...
-        res.info.status_val == osqp.constant.OSQP_SOLVED_INACCURATE
+OSQP_SOLVED = solver.constant('OSQP_SOLVED');
+OSQP_SOLVED_INACCURATE = solver.constant('OSQP_SOLVED_INACCURATE');
+OSQP_PRIMAL_INFEASIBLE = solver.constant('OSQP_PRIMAL_INFEASIBLE');
+OSQP_PRIMAL_INFEASIBLE_INACCURATE = solver.constant('OSQP_PRIMAL_INFEASIBLE_INACCURATE');
+OSQP_DUAL_INFEASIBLE = solver.constant('OSQP_DUAL_INFEASIBLE');
+OSQP_DUAL_INFEASIBLE_INACCURATE = solver.constant('OSQP_DUAL_INFEASIBLE_INACCURATE');
+
+if res.info.status_val == OSQP_SOLVED || ...
+    res.info.status_val == OSQP_SOLVED_INACCURATE
     fprintf('Problem solved: obj = %.4f\n', res.info.obj_val);
-elseif res.info.status_val == osqp.constant.OSQP_PRIMAL_INFEASIBLE || ...
-        res.info.status_val == osqp.constant.OSQP_PRIMAL_INFEASIBLE_INACCURATE
+elseif res.info.status_val == OSQP_PRIMAL_INFEASIBLE || ...
+    res.info.status_val == OSQP_PRIMAL_INFEASIBLE_INACCURATE
     fprintf('Problem is primal infeasible\n');
-elseif res.info.status_val == osqp.constant.OSQP_DUAL_INFEASIBLE || ...
-        res.info.status_val == osqp.constant.OSQP_DUAL_INFEASIBLE_INACCURATE
+elseif res.info.status_val == OSQP_DUAL_INFEASIBLE || ...
+    res.info.status_val == OSQP_DUAL_INFEASIBLE_INACCURATE
     fprintf('Problem is dual infeasible\n');
 else
     fprintf('Solver status: %s (%d)\n', res.info.status, res.info.status_val);
