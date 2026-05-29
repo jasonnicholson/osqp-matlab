@@ -11,30 +11,43 @@ classdef SolverOptions
     %  ADMM parameters
     % -----------------------------------------------------------------
     properties
-        rho     (1,1) double {mustBePositive}              = 0.1
-        sigma   (1,1) double {mustBePositive}              = 1e-6
-        alpha   (1,1) double {mustBeInRange(alpha,0,2)}    = 1.6
+        % ADMM penalty parameter rho.
+        rho     (1,1) double {mustBePositive} = 0.1
+        % Dual variable regularization parameter sigma.
+        sigma   (1,1) double {mustBePositive} = 1e-6
+        % Relaxation parameter alpha in the interval (0, 2).
+        alpha   (1,1) double {mustBeBetween(alpha, 0, 2)} = 1.6
     end
 
     % -----------------------------------------------------------------
     %  Termination criteria
     % -----------------------------------------------------------------
     properties
-        max_iter          (1,1) double {mustBePositive, mustBeInteger} = 4000
-        eps_abs           (1,1) double {mustBeNonnegative}             = 1e-3
-        eps_rel           (1,1) double {mustBeNonnegative}             = 1e-3
-        eps_prim_inf      (1,1) double {mustBeNonnegative}             = 1e-4
-        eps_dual_inf      (1,1) double {mustBeNonnegative}             = 1e-4
+        % Maximum number of ADMM iterations.
+        max_iter (1,1) double {mustBePositive, mustBeInteger} = 4000
+        % Absolute feasibility tolerance.
+        eps_abs  (1,1) double {mustBeNonnegative} = 1e-3
+        % Relative feasibility tolerance.
+        eps_rel (1,1) double {mustBeNonnegative}  = 1e-3
+        % Primal infeasibility tolerance.
+        eps_prim_inf (1,1) double {mustBeNonnegative} = 1e-4
+        % Dual infeasibility tolerance.
+        eps_dual_inf (1,1) double {mustBeNonnegative} = 1e-4
+        % Iteration interval for termination checks.
         check_termination (1,1) double {mustBeNonnegative, mustBeInteger} = 25
-        time_limit        (1,1) double {mustBeNonnegative}             = 0
-        scaled_termination(1,1) logical                                = false
-        check_dualgap     (1,1) logical                                = false
+        % Solver time limit in seconds; 0 disables the limit.
+        time_limit (1,1) double {mustBeNonnegative} = 0
+        % Use scaled stopping criteria when true.
+        scaled_termination (1,1) logical = false
+        % Include duality gap in termination checks when true.
+        check_dualgap (1,1) logical = false
     end
 
     % -----------------------------------------------------------------
     %  Scaling
     % -----------------------------------------------------------------
     properties
+        % Number of Ruiz scaling iterations.
         scaling (1,1) double {mustBeNonnegative, mustBeInteger} = 10
     end
 
@@ -42,9 +55,13 @@ classdef SolverOptions
     %  Adaptive rho
     % -----------------------------------------------------------------
     properties
-        adaptive_rho           (1,1) logical = true
+        % Enable adaptive rho updates when true.
+        adaptive_rho (1,1) logical = true
+        % Iteration interval for adaptive rho updates; 0 enables auto mode.
         adaptive_rho_interval  (1,1) double {mustBeNonnegative, mustBeInteger} = 0
+        % Minimum ratio threshold used to trigger adaptive rho updates.
         adaptive_rho_tolerance (1,1) double {mustBeGreaterThanOrEqual(adaptive_rho_tolerance,1)} = 5
+        % Fraction of setup time used to choose automatic rho update interval.
         adaptive_rho_fraction  (1,1) double {mustBePositive}  = 0.4
     end
 
@@ -52,8 +69,11 @@ classdef SolverOptions
     %  Polishing
     % -----------------------------------------------------------------
     properties
-        polishing          (1,1) logical                                 = false
-        delta              (1,1) double {mustBePositive}                 = 1e-6
+        % Enable solution polishing when true.
+        polishing (1,1) logical = false
+        % Regularization parameter used by polishing.
+        delta (1,1) double {mustBePositive} = 1e-6
+        % Number of iterative refinement steps during polishing.
         polish_refine_iter (1,1) double {mustBeNonnegative, mustBeInteger} = 3
     end
 
@@ -61,14 +81,16 @@ classdef SolverOptions
     %  Linear solver
     % -----------------------------------------------------------------
     properties
-        linear_solver (1,:) char {mustBeMember(linear_solver, ...
-            {'matlab_ldl','qdldl','qdldl_c','mkl pardiso','cuda pcg'})} = 'qdldl'
+        % TODO Better handle how the Cinterface and native solver linear algebra backends are different.
+        % Linear system backend used by the solver.
+        linear_solver (1,:) char {mustBeMember(linear_solver, {'matlab_ldl', 'qdldl', 'qdldl_c', 'mkl pardiso', 'cuda pcg'})} = 'qdldl'
     end
 
     % -----------------------------------------------------------------
     %  Output
     % -----------------------------------------------------------------
     properties
+        % Print solver progress to the command window when true.
         verbose (1,1) logical = true
     end
 
@@ -76,6 +98,7 @@ classdef SolverOptions
     %  Warm starting
     % -----------------------------------------------------------------
     properties
+        % Reuse previous primal/dual iterates to warm start when true.
         warm_starting (1,1) logical = true
     end
 
@@ -83,24 +106,32 @@ classdef SolverOptions
     %  C-interface-only settings (passed through, not used by Solver.m)
     % -----------------------------------------------------------------
     properties
-        device            (1,1) double {mustBeNonnegative, mustBeInteger} = 0
-        linsys_solver     (1,1) double {mustBeNonnegative, mustBeInteger} = 0
-        allocate_solution (1,1) logical                                  = true
-        profiler_level    (1,1) double {mustBeNonnegative, mustBeInteger} = 0
-        rho_is_vec        (1,1) logical                                  = false
-        cg_max_iter       (1,1) double {mustBePositive, mustBeInteger}    = 20
-        cg_tol_reduction  (1,1) double {mustBePositive, mustBeInteger}    = 200
-        cg_tol_fraction   (1,1) double {mustBePositive}                  = 2.5e-5
-        cg_precond        (1,1) double {mustBeNonnegative, mustBeInteger} = 0
+        % Device identifier used by selected backend implementations.
+        device (1,1) double {mustBeNonnegative, mustBeInteger} = 0
+        % Numeric code for the low-level linear system solver.
+        linsys_solver (1,1) double {mustBeNonnegative, mustBeInteger} = 0
+        % Allocate internal solution buffers at setup when true.
+        allocate_solution (1,1) logical = true
+        % Profiler detail level for C-interface instrumentation.
+        profiler_level (1,1) double {mustBeNonnegative, mustBeInteger} = 0
+        % Interpret rho as a vector when true.
+        rho_is_vec (1,1) logical = false
+        % Maximum conjugate-gradient iterations per linear solve.
+        cg_max_iter (1,1) double {mustBePositive, mustBeInteger}    = 20
+        % Integer factor controlling CG tolerance reduction.
+        cg_tol_reduction  (1,1) double {mustBePositive, mustBeInteger} = 200
+        % Fraction used to set the CG convergence tolerance.
+        cg_tol_fraction (1,1) double {mustBePositive} = 2.5e-5
+        % Preconditioner selection code for the CG solver.
+        cg_precond (1,1) double {mustBeNonnegative, mustBeInteger} = 0
     end
 
     % -----------------------------------------------------------------
     %  Constants
     % -----------------------------------------------------------------
     properties (Constant)
-        OSQP_INFTY = 1e30
-
         % Settings that can only be set at setup time (not updatable)
+        % Names of settings that are only valid during initial setup.
         SETUP_ONLY_SETTINGS = { ...
             'sigma', 'scaling', ...
             'adaptive_rho', 'adaptive_rho_interval', ...
@@ -111,6 +142,7 @@ classdef SolverOptions
             'cg_max_iter', 'cg_tol_reduction', 'cg_tol_fraction', 'cg_precond'}
 
         % Settings that can be updated after setup
+        % Names of settings that can be updated after initial setup.
         UPDATABLE_SETTINGS = { ...
             'max_iter', 'eps_abs', 'eps_rel', ...
             'eps_prim_inf', 'eps_dual_inf', ...

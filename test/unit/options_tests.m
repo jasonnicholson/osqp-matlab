@@ -81,10 +81,8 @@ classdef options_tests < matlab.unittest.TestCase
 
         function testValidationAlphaRange(testCase)
             opts = osqp.SolverOptions();
-            testCase.verifyError(@() setfield_helper(opts, 'alpha', 3), ...
-                'MATLAB:validators:mustBeInRange');
-            testCase.verifyError(@() setfield_helper(opts, 'alpha', -0.5), ...
-                'MATLAB:validators:mustBeInRange');
+            testCase.verifyError(@() setfield_helper(opts, 'alpha', 3), 'MATLAB:validators:mustBeBetweenScalarBounds');
+            testCase.verifyError(@() setfield_helper(opts, 'alpha', -0.5), 'MATLAB:validators:mustBeBetweenScalarBounds');
         end
 
         function testValidationLinearSolver(testCase)
