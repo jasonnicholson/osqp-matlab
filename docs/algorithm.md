@@ -60,8 +60,8 @@ The algorithm iterates `opts.scaling` times (default 10). Each iteration:
    MATLAB: `max(abs(Pw))` for column norms, `max(abs(Aw), [], 2)` for row norms
 
 2. **Limit scaling vectors**:
-   - If $v < \text{MIN\_SCALING}$, set $v = 1$
-   - If $v > \text{MAX\_SCALING}$, set $v = \text{MAX\_SCALING}$
+   - If `v < MIN_SCALING`, set `v = 1`
+   - If `v > MAX_SCALING`, set `v = MAX_SCALING`
 
    C: `limit_scaling_vector(D_temp)`, `limit_scaling_vector(E_temp)`  
    MATLAB: `D_temp(D_temp < MIN_S) = 1.0; D_temp = min(D_temp, MAX_S)`
@@ -81,7 +81,7 @@ The algorithm iterates `opts.scaling` times (default 10). Each iteration:
 6. **Cost normalization**:
    - Compute $\bar{c} = \frac{1}{n}\sum_j \|P_{\cdot j}\|_\infty$ (mean column inf-norm)
    - $c_\text{temp} = \max(\bar{c}, \|q\|_\infty)$
-   - Apply `limit_scaling_scalar`: if $< \text{MIN\_SCALING}$, set to 1; cap at `MAX\_SCALING`
+   - Apply `limit_scaling_scalar`: if below `MIN_SCALING`, set to 1; cap at `MAX_SCALING`
    - $c_\text{temp} \leftarrow 1/c_\text{temp}$
    - $P \leftarrow c_\text{temp} \cdot P$, $q \leftarrow c_\text{temp} \cdot q$
    - $c \leftarrow c \cdot c_\text{temp}$
@@ -100,8 +100,8 @@ For each constraint $i$:
 
 | Condition | Type | $\rho_i$ |
 |---|---|---|
-| $l_i \le -\text{INFTY\_THRESH}$ and $u_i \ge \text{INFTY\_THRESH}$ | Loose ($-1$) | `OSQP_RHO_MIN` |
-| $|l_i - u_i| < \text{RHO\_TOL}$ | Equality ($1$) | `OSQP_RHO_EQ_OVER_RHO_INEQ × rho` |
+| `l_i <= -INFTY_THRESH` and `u_i >= INFTY_THRESH` | Loose ($-1$) | `OSQP_RHO_MIN` |
+| `abs(l_i - u_i) < RHO_TOL` | Equality ($1$) | `OSQP_RHO_EQ_OVER_RHO_INEQ × rho` |
 | Otherwise | Inequality ($0$) | `rho` |
 
 where `INFTY_THRESH = OSQP_INFTY × MIN_SCALING = 1e26`.
@@ -248,7 +248,7 @@ MATLAB: Lines 972–1027
 
 1. Compute $\delta y = y^{k+1} - y^{k}$
 2. **Project onto polar recession cone**: `project_polar_reccone(δy, l, u, INFTY_THRESH)`
-   - For each $i$: if both $|l_i|$ and $|u_i| \ge \text{INFTY\_THRESH}$ (loose): $\delta y_i = 0$
+   - For each $i$: if both `abs(l_i)` and `abs(u_i)` are at least `INFTY_THRESH` (loose), then $\delta y_i = 0$
    - If only $l_i$ is infinite: $\delta y_i = \min(\delta y_i, 0)$
    - If only $u_i$ is infinite: $\delta y_i = \max(\delta y_i, 0)$
 
@@ -259,9 +259,9 @@ MATLAB: Lines 972–1027
    - Scaled: $\|\delta y\|_\infty$
    - Unscaled: $\|E \cdot \delta y\|_\infty$
 
-4. If $\|\delta y\| > \varepsilon_\text{prim\_inf}$:
+4. If $\|\delta y\| > \varepsilon_{\mathrm{prim,inf}}$:
    - **Support function check**: $u^T \max(\delta y, 0) + l^T \min(\delta y, 0) < 0$ (only for finite bounds)
-   - **A' check**: $\|A_s^T \delta y\|_\infty < \varepsilon_\text{prim\_inf} \cdot \|\delta y\|$
+   - **A' check**: $\|A_s^T \delta y\|_\infty < \varepsilon_{\mathrm{prim,inf}} \cdot \|\delta y\|$
      - In unscaled mode: $A_s^T \delta y$ is post-multiplied by $D^{-1}$
 
 ### 5.7. Dual Infeasibility Certificate ($\delta x$)
@@ -274,9 +274,9 @@ MATLAB: Lines 1030–1071
    - Scaled: $\|\delta x\|_\infty$
    - Unscaled: $\|D \cdot \delta x\|_\infty$
 3. **Cost scaling**: $c_s = c$ (unscaled) or $c_s = 1$ (scaled)
-4. If $\|\delta x\| > \text{DIVISION\_TOL}$:
+4. If $\|\delta x\| >$ `DIVISION_TOL`:
    - **Cost check**: $q_s^T \delta x < 0$
-   - **Hessian check**: $\|P_s \delta x\|_\infty < c_s \cdot \varepsilon_\text{dual\_inf} \cdot \|\delta x\|$
+   - **Hessian check**: $\|P_s \delta x\|_\infty < c_s \cdot \varepsilon_{\mathrm{dual,inf}} \cdot \|\delta x\|$
      - In unscaled mode: $P_s \delta x$ is post-multiplied by $D^{-1}$
    - **Cone check**: $A_s \delta x \in \text{reccone}([l_s, u_s])$
      - In unscaled mode: $A_s \delta x$ is post-multiplied by $E^{-1}$
@@ -309,7 +309,7 @@ MATLAB: Lines 280–289
 
 For iteration-based mode (default): if `adaptive_rho_interval == 0` and `check_termination > 0`:
 
-$$\text{interval} = \text{ADAPTIVE\_RHO\_MULTIPLE\_TERMINATION} \times \text{check\_termination} = 4 \times 25 = 100$$
+`interval = ADAPTIVE_RHO_MULTIPLE_TERMINATION × check_termination = 4 × 25 = 100`
 
 ### 7.2. Rho Estimate
 
@@ -318,7 +318,7 @@ MATLAB: `Solver.computeNewRho()` (lines 1114–1163)
 
 $$\hat{\rho} = \rho \sqrt{\frac{\|r_\text{prim}\|_\infty / (\max(\|z\|, \|Ax\|) + \delta)}{\|r_\text{dual}\|_\infty / (\max(\|q\|, \|A^Ty\|, \|Px\|) + \delta)}}$$
 
-where $\delta = \text{DIVISION\_TOL}$. Clamped to $[\text{RHO\_MIN}, \text{RHO\_MAX}]$.
+where $\delta$ denotes `DIVISION_TOL`. Clamped to [`RHO_MIN`, `RHO_MAX`].
 
 **Note**: Both C and MATLAB use the **scaled** residuals and norms for rho estimation, not the unscaled ones.
 
@@ -372,10 +372,10 @@ Polishing is performed only when `status == SOLVED` and `polishing == true`.
 ### 10.1. Active Set Detection
 
 For each constraint $j$, determine active bound:
-- **Lower-active**: $y_j < -\delta$ and $|l_j| < \text{INFTY}$, or $|A_j x - l_j| \le \text{tol\_act}$
-- **Upper-active**: $y_j > \delta$ and $|u_j| < \text{INFTY}$, or $|A_j x - u_j| \le \text{tol\_act}$
+- **Lower-active**: $y_j < -\delta$ and $|l_j| < \mathrm{INFTY}$, or $|A_j x - l_j| \le \mathrm{tol}_{\mathrm{act}}$
+- **Upper-active**: $y_j > \delta$ and $|u_j| < \mathrm{INFTY}$, or $|A_j x - u_j| \le \mathrm{tol}_{\mathrm{act}}$
 
-where $\text{tol\_act} = \max(\delta, \varepsilon_\text{abs})$.
+where $\mathrm{tol}_{\mathrm{act}} = \max(\delta, \varepsilon_{\mathrm{abs}})$.
 
 ### 10.2. Reduced KKT System
 
